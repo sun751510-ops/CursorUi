@@ -47,15 +47,29 @@
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       font-family: Inter, Segoe UI, system-ui, sans-serif;
+      color: #d0d5e2;
       background:
         radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.22), transparent 55%),
         radial-gradient(900px 500px at 90% 0%, rgba(124,92,255,.18), transparent 50%),
         linear-gradient(160deg, #07090e 0%, #10131b 45%, #0b0f16 100%);
       overflow: hidden;
+    }
+    #bootError {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      padding: 24px;
+      background: #11141c;
+      color: #f87171;
+      font: 14px/1.5 system-ui, sans-serif;
+      white-space: pre-wrap;
     }
     .wallpaper-grid {
       background-image:
@@ -96,13 +110,49 @@
       transition: all .25s ease;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
+    #appWindow {
+      background: rgba(17, 20, 28, 0.96);
+      height: min(860px, calc(100dvh - 1rem));
+    }
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .desktop-icons, .desktop-taskbar { display: none !important; }
+      .app-shell {
+        min-height: 100dvh !important;
+        padding: 0 !important;
+        align-items: stretch !important;
+      }
+      #appWindow {
+        max-width: none !important;
+        height: 100dvh !important;
+        border-radius: 0 !important;
+        border: none !important;
+      }
+      .main-panes { flex-direction: column !important; }
+      .library-pane {
+        width: 100% !important;
+        max-height: 38vh;
+        border-right: none !important;
+        border-bottom: 1px solid rgba(255,255,255,.05);
+      }
+      .inspector-pane {
+        width: 100% !important;
+        max-height: 40vh;
+        border-left: none !important;
+        border-top: 1px solid rgba(255,255,255,.05);
+      }
+      .editor-split { flex-direction: column !important; }
+      .speed-control { display: none !important; }
+      .toast { bottom: 1rem; right: 1rem; left: 1rem; }
+    }
   </style>
 </head>
 <body class="text-desk-200">
+  <div id="bootError"></div>
   <div class="wallpaper-grid fixed inset-0 pointer-events-none"></div>
 
   <!-- Desktop icons -->
-  <div class="absolute left-6 top-6 z-0 space-y-5 text-center select-none">
+  <div class="desktop-icons absolute left-6 top-6 z-0 space-y-5 text-center select-none">
     <div class="w-16 flex flex-col items-center gap-1 opacity-80">
       <div class="w-12 h-12 rounded-xl bg-desk-800/80 border border-white/10 flex items-center justify-center shadow-lg">
         <i class="fa-solid fa-folder text-desk-accent text-xl"></i>
@@ -118,8 +168,8 @@
   </div>
 
   <!-- App Window -->
-  <div class="relative z-10 min-h-screen flex items-center justify-center p-4 md:p-8">
-    <div id="appWindow" class="w-full max-w-[1280px] h-[min(860px,calc(100vh-2rem))] bg-desk-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-window overflow-hidden flex flex-col">
+  <div class="app-shell relative z-10 min-h-screen flex items-center justify-center p-4 md:p-8 pb-16 md:pb-8">
+    <div id="appWindow" class="w-full max-w-[1280px] backdrop-blur-xl border border-white/10 rounded-2xl shadow-window overflow-hidden flex flex-col">
 
       <!-- Title bar -->
       <header class="titlebar h-11 shrink-0 px-3 flex items-center justify-between bg-desk-850 border-b border-white/5">
@@ -173,7 +223,7 @@
             <i class="fa-solid fa-play text-[10px]"></i>
             Playing
           </div>
-          <label class="flex items-center gap-2 text-desk-400">
+          <label class="speed-control flex items-center gap-2 text-desk-400">
             Speed
             <input id="speedRange" type="range" min="0.5" max="3" step="0.5" value="1" class="w-20 accent-desk-accent" />
             <span id="speedLabel" class="w-8 text-desk-200">1×</span>
@@ -182,9 +232,9 @@
       </div>
 
       <!-- Main body -->
-      <div class="flex-1 min-h-0 flex">
+      <div class="main-panes flex-1 min-h-0 flex">
         <!-- Sidebar -->
-        <aside class="w-[260px] shrink-0 border-r border-white/5 bg-desk-850/70 flex flex-col">
+        <aside class="library-pane w-[260px] shrink-0 border-r border-white/5 bg-desk-850/70 flex flex-col">
           <div class="px-3 py-3 flex items-center justify-between">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-desk-400">Library</h2>
             <button id="btnSort" class="text-desk-500 hover:text-desk-200 text-xs" title="Sort"><i class="fa-solid fa-arrow-down-a-z"></i></button>
@@ -223,7 +273,7 @@
             </div>
           </div>
 
-          <div class="flex-1 min-h-0 flex">
+          <div class="editor-split flex-1 min-h-0 flex">
             <!-- Steps -->
             <section class="flex-1 min-w-0 flex flex-col">
               <div class="px-4 py-2 flex items-center justify-between text-xs text-desk-400 border-b border-white/5">
@@ -234,7 +284,7 @@
             </section>
 
             <!-- Inspector -->
-            <aside class="w-[300px] shrink-0 border-l border-white/5 bg-desk-850/40 flex flex-col">
+            <aside class="inspector-pane w-[300px] shrink-0 border-l border-white/5 bg-desk-850/40 flex flex-col">
               <div class="px-4 py-3 border-b border-white/5">
                 <h3 class="text-xs font-semibold uppercase tracking-wider text-desk-400">Inspector</h3>
               </div>
@@ -309,7 +359,7 @@
   </div>
 
   <!-- Taskbar -->
-  <div class="fixed bottom-0 inset-x-0 h-12 z-20 px-3 flex items-center justify-between bg-desk-950/80 backdrop-blur-xl border-t border-white/10">
+  <div class="desktop-taskbar fixed bottom-0 inset-x-0 h-12 z-20 px-3 flex items-center justify-between bg-desk-950/80 backdrop-blur-xl border-t border-white/10">
     <div class="flex items-center gap-2">
       <button class="w-9 h-9 rounded-xl bg-gradient-to-br from-desk-accent to-desk-accent2 text-white shadow-glow flex items-center justify-center">
         <i class="fa-solid fa-border-all"></i>
@@ -440,8 +490,13 @@
       }
     ];
 
+    const clone = (value) => {
+      if (typeof structuredClone === 'function') return structuredClone(value);
+      return JSON.parse(JSON.stringify(value));
+    };
+
     const state = {
-      macros: structuredClone(seedMacros),
+      macros: clone(seedMacros),
       selectedMacroId: 'm1',
       selectedStepId: null,
       filter: 'all',
@@ -790,7 +845,7 @@
     function duplicateMacro() {
       const m = selectedMacro();
       if (!m) return;
-      const copy = structuredClone(m);
+      const copy = clone(m);
       copy.id = uid();
       copy.name = m.name + ' Copy';
       copy.favorite = false;
@@ -1032,12 +1087,19 @@
       if (e.key === 'Escape') closeModal();
     });
 
-    updateClocks();
-    setInterval(updateClocks, 15000);
-    renderAll();
-    state.selectedStepId = selectedMacro()?.steps[0]?.id || null;
-    renderInspector();
-    $$('.step-item').forEach(s => s.classList.toggle('active', s.dataset.id === state.selectedStepId));
+    try {
+      updateClocks();
+      setInterval(updateClocks, 15000);
+      renderAll();
+      state.selectedStepId = selectedMacro()?.steps[0]?.id || null;
+      renderInspector();
+      $$('.step-item').forEach(s => s.classList.toggle('active', s.dataset.id === state.selectedStepId));
+    } catch (err) {
+      const box = document.getElementById('bootError');
+      box.style.display = 'block';
+      box.textContent = 'Macro Studio failed to start:\n\n' + (err && err.stack ? err.stack : String(err));
+      console.error(err);
+    }
   </script>
 </body>
 </html>
