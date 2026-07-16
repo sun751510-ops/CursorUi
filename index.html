@@ -2,270 +2,426 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Macro Studio</title>
+  <!-- Tailwind kept as optional enhancement; layout works without it -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <script>
+    window.tailwind = window.tailwind || {};
     tailwind.config = {
       theme: {
         extend: {
           colors: {
             desk: {
-              950: '#0b0d12',
-              900: '#11141c',
-              850: '#161a24',
-              800: '#1c2130',
-              700: '#262c3f',
-              600: '#343b55',
-              500: '#4a5370',
-              400: '#7b849f',
-              300: '#a8b0c4',
-              200: '#d0d5e2',
-              accent: '#5b8cff',
-              accent2: '#7c5cff',
-              success: '#34d399',
-              danger: '#f87171',
-              warn: '#fbbf24'
+              950: '#0b0d12', 900: '#11141c', 850: '#161a24', 800: '#1c2130',
+              700: '#262c3f', 600: '#343b55', 500: '#4a5370', 400: '#7b849f',
+              300: '#a8b0c4', 200: '#d0d5e2', accent: '#5b8cff', accent2: '#7c5cff',
+              success: '#34d399', danger: '#f87171', warn: '#fbbf24'
             }
-          },
-          boxShadow: {
-            window: '0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06)',
-            glow: '0 0 24px rgba(91,140,255,.35)'
-          },
-          fontFamily: {
-            ui: ['Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
-            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
           }
         }
       }
     };
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg0: #07090e;
+      --bg1: #11141c;
+      --bg2: #161a24;
+      --bg3: #1c2130;
+      --bg4: #262c3f;
+      --line: rgba(255,255,255,.08);
+      --text: #d0d5e2;
+      --muted: #7b849f;
+      --accent: #5b8cff;
+      --accent2: #7c5cff;
+      --success: #34d399;
+      --danger: #f87171;
+      --warn: #fbbf24;
+    }
     * { box-sizing: border-box; }
-    html, body { height: 100%; }
+    html, body { height: 100%; margin: 0; }
     body {
-      margin: 0;
-      min-height: 100vh;
-      min-height: 100dvh;
-      font-family: Inter, Segoe UI, system-ui, sans-serif;
-      color: #d0d5e2;
+      font-family: Inter, Segoe UI, system-ui, -apple-system, sans-serif;
+      color: var(--text);
       background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.22), transparent 55%),
-        radial-gradient(900px 500px at 90% 0%, rgba(124,92,255,.18), transparent 50%),
-        linear-gradient(160deg, #07090e 0%, #10131b 45%, #0b0f16 100%);
+        radial-gradient(900px 500px at 15% -10%, rgba(91,140,255,.25), transparent 55%),
+        radial-gradient(700px 400px at 90% 0%, rgba(124,92,255,.2), transparent 50%),
+        linear-gradient(160deg, #07090e 0%, #10131b 50%, #0b0f16 100%);
       overflow: hidden;
     }
-    #bootError {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      padding: 24px;
-      background: #11141c;
-      color: #f87171;
-      font: 14px/1.5 system-ui, sans-serif;
-      white-space: pre-wrap;
+
+    .app-shell {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      padding-bottom: 56px;
     }
-    .wallpaper-grid {
-      background-image:
-        linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
-      background-size: 40px 40px;
+
+    #appWindow {
+      width: 100%;
+      max-width: 1280px;
+      height: min(860px, calc(100dvh - 64px));
+      background: rgba(17,20,28,.97);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.55);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
-    .scrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
-    .scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(122,132,160,.35);
-      border-radius: 999px;
-      border: 2px solid transparent;
-      background-clip: padding-box;
+
+    .titlebar, .toolbar, .statusbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg2);
     }
-    .scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .step-item.active {
-      background: linear-gradient(90deg, rgba(91,140,255,.18), rgba(91,140,255,.05));
-      border-color: rgba(91,140,255,.45);
+    .titlebar { height: 44px; padding: 0 12px; }
+    .toolbar { height: 48px; padding: 0 10px; background: rgba(17,20,28,.9); flex-wrap: wrap; }
+    .statusbar {
+      height: 32px; padding: 0 12px; border-bottom: 0; border-top: 1px solid var(--line);
+      font-size: 11px; color: var(--muted);
     }
-    .macro-item.active {
-      background: rgba(91,140,255,.14);
-      border-color: rgba(91,140,255,.4);
+
+    .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .traffic { display: flex; gap: 6px; }
+    .traffic span {
+      width: 12px; height: 12px; border-radius: 50%;
+      display: inline-block;
     }
-    .pulse-dot {
-      box-shadow: 0 0 0 0 rgba(248,113,113,.7);
+    .dot-red { background: #ff5f57; }
+    .dot-yellow { background: #febc2e; }
+    .dot-green { background: #28c840; }
+
+    .brand-badge {
+      width: 24px; height: 24px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 11px;
+    }
+    .title-text { font-size: 14px; font-weight: 600; white-space: nowrap; }
+    .title-sub { color: var(--muted); font-weight: 400; }
+
+    .btn {
+      appearance: none; border: 0; background: transparent; color: var(--text);
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 10px; border-radius: 8px; font-size: 12px; cursor: pointer;
+    }
+    .btn:hover { background: rgba(255,255,255,.06); }
+    .btn.danger { color: #fca5a5; }
+    .icon-btn {
+      width: 32px; height: 32px; border: 0; border-radius: 8px;
+      background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,.06); color: var(--text); }
+
+    .search {
+      display: none; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 8px; background: var(--bg3);
+      border: 1px solid var(--line); font-size: 12px; color: var(--muted);
+    }
+    .search input {
+      border: 0; outline: 0; background: transparent; color: var(--text); width: 140px;
+    }
+    @media (min-width: 640px) { .search { display: flex; } }
+
+    .badge {
+      display: none; align-items: center; gap: 8px;
+      padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid;
+    }
+    .badge.show { display: inline-flex; }
+    .badge.rec { color: var(--danger); background: rgba(248,113,113,.12); border-color: rgba(248,113,113,.3); }
+    .badge.play { color: var(--success); background: rgba(52,211,153,.12); border-color: rgba(52,211,153,.3); }
+    .pulse {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--danger);
+      box-shadow: 0 0 0 0 rgba(248,113,113,.55);
       animation: pulse 1.4s infinite;
     }
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(248,113,113,.55); }
       70% { box-shadow: 0 0 0 10px rgba(248,113,113,0); }
-      100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
     }
-    .titlebar { -webkit-app-region: drag; }
-    .no-drag { -webkit-app-region: no-drag; }
+
+    .main-panes { flex: 1; min-height: 0; display: flex; }
+    .library-pane {
+      width: 260px; flex-shrink: 0; border-right: 1px solid var(--line);
+      background: rgba(22,26,36,.8); display: flex; flex-direction: column;
+    }
+    .editor-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg1); }
+    .editor-split { flex: 1; min-height: 0; display: flex; }
+    .timeline-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .inspector-pane {
+      width: 300px; flex-shrink: 0; border-left: 1px solid var(--line);
+      background: rgba(22,26,36,.45); display: flex; flex-direction: column;
+    }
+
+    .pane-head {
+      padding: 12px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+    }
+    .filters {
+      margin: 0 12px 8px; padding: 4px; border-radius: 10px; background: rgba(28,33,48,.85);
+      border: 1px solid var(--line); display: flex; gap: 4px;
+    }
+    .filters button {
+      flex: 1; border: 0; background: transparent; color: var(--muted);
+      border-radius: 8px; padding: 8px 6px; font-size: 12px; cursor: pointer;
+    }
+    .filters button.active { background: rgba(91,140,255,.2); color: var(--accent); font-weight: 600; }
+
+    .scroll { overflow: auto; -webkit-overflow-scrolling: touch; }
+    .scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+    .scroll::-webkit-scrollbar-thumb { background: rgba(122,132,160,.35); border-radius: 999px; }
+
+    #macroList, #stepList { padding: 8px; flex: 1; }
+    .macro-item, .step-item {
+      width: 100%; text-align: left; border: 1px solid transparent;
+      background: transparent; color: inherit; border-radius: 12px;
+      padding: 10px; margin-bottom: 6px; cursor: pointer;
+    }
+    .macro-item:hover, .step-item:hover { background: rgba(255,255,255,.04); }
+    .macro-item.active, .step-item.active {
+      background: rgba(91,140,255,.14);
+      border-color: rgba(91,140,255,.4);
+    }
+    .macro-item .name { font-size: 14px; font-weight: 600; color: #eef2ff; }
+    .macro-item .meta, .step-item .meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .thumb {
+      width: 32px; height: 32px; border-radius: 10px; background: var(--bg3);
+      border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center;
+      color: var(--accent); flex-shrink: 0;
+    }
+
+    .editor-top {
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; gap: 12px; align-items: flex-start;
+    }
+    #macroName {
+      width: 100%; border: 0; border-bottom: 1px solid transparent; outline: 0;
+      background: transparent; color: #fff; font-size: 18px; font-weight: 700;
+    }
+    #macroName:focus { border-bottom-color: rgba(91,140,255,.5); }
+    #macroMeta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .chip {
+      display: inline-block; padding: 4px 8px; border-radius: 6px; background: var(--bg3);
+      border: 1px solid var(--line); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    select.chip {
+      color: var(--text); outline: 0;
+    }
+
+    .section-bar {
+      padding: 8px 16px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);
+    }
+
+    .step-item { display: flex; gap: 12px; background: rgba(28,33,48,.4); border-color: var(--line); }
+    .step-num {
+      width: 24px; height: 24px; border-radius: 6px; background: var(--bg4);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; font-family: ui-monospace, monospace; color: #a8b0c4;
+    }
+    .step-title { font-size: 14px; font-weight: 600; color: #eef2ff; }
+    .empty {
+      border: 1px dashed var(--line); border-radius: 16px; min-height: 180px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; color: var(--muted); text-align: center; padding: 24px;
+    }
+    .empty button {
+      border: 1px solid rgba(91,140,255,.35); background: rgba(91,140,255,.18);
+      color: var(--accent); border-radius: 8px; padding: 8px 12px; cursor: pointer;
+    }
+
+    #inspectorEmpty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      text-align: center; color: var(--muted); padding: 24px; font-size: 14px;
+    }
+    #inspectorForm { display: none; flex: 1; padding: 16px; gap: 14px; flex-direction: column; }
+    #inspectorForm.show { display: flex; }
+    .field label {
+      display: block; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+    }
+    .field input, .field select, .field textarea {
+      width: 100%; background: var(--bg3); border: 1px solid var(--line);
+      border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: 14px; outline: 0;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: rgba(91,140,255,.55); box-shadow: 0 0 0 3px rgba(91,140,255,.15);
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .primary {
+      flex: 1; border: 0; border-radius: 10px; padding: 10px 12px;
+      background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+    }
+    .danger-outline {
+      border: 1px solid rgba(248,113,113,.35); background: rgba(248,113,113,.12);
+      color: var(--danger); border-radius: 10px; padding: 10px 12px; cursor: pointer;
+    }
+
+    .desktop-icons { position: absolute; left: 20px; top: 20px; z-index: 0; }
+    .desk-icon { width: 64px; text-align: center; margin-bottom: 18px; opacity: .85; font-size: 11px; color: #a8b0c4; }
+    .desk-icon .box {
+      width: 48px; height: 48px; margin: 0 auto 6px; border-radius: 12px;
+      background: rgba(28,33,48,.8); border: 1px solid var(--line);
+      display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--accent);
+    }
+
+    .taskbar {
+      position: fixed; left: 0; right: 0; bottom: 0; height: 48px; z-index: 20;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 12px; background: rgba(11,13,18,.85); border-top: 1px solid rgba(255,255,255,.1);
+      backdrop-filter: blur(12px);
+    }
+    .task-pill {
+      display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
+      border-radius: 10px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.1);
+      color: var(--text); font-size: 13px;
+    }
+    .start {
+      width: 36px; height: 36px; border: 0; border-radius: 12px; color: #fff; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+    }
+
+    .modal {
+      position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.55); padding: 16px;
+    }
+    .modal.show { display: flex; }
+    .modal-card {
+      width: 100%; max-width: 420px; background: var(--bg2); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 16px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.55);
+    }
+    .modal-head {
+      padding: 12px 16px; border-bottom: 1px solid var(--line);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 16px; }
+    .type-grid button {
+      display: flex; align-items: center; gap: 10px; text-align: left;
+      padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1);
+      background: rgba(28,33,48,.5); color: var(--text); cursor: pointer;
+    }
+    .type-grid button:hover { border-color: rgba(91,140,255,.4); background: rgba(91,140,255,.1); }
+
     .toast {
-      transform: translateY(120%);
-      opacity: 0;
-      transition: all .25s ease;
+      position: fixed; right: 16px; bottom: 64px; z-index: 50;
+      padding: 12px 16px; border-radius: 12px; background: var(--bg3);
+      border: 1px solid rgba(255,255,255,.1); box-shadow: 0 20px 40px rgba(0,0,0,.4);
+      transform: translateY(120%); opacity: 0; transition: .25s ease; font-size: 14px;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
-    #appWindow {
-      background: rgba(17, 20, 28, 0.96);
-      height: min(860px, calc(100dvh - 1rem));
+
+    #bootError {
+      display: none; position: fixed; inset: 0; z-index: 9999; padding: 24px;
+      background: #11141c; color: #f87171; white-space: pre-wrap; font: 14px/1.5 ui-monospace, monospace;
     }
+
+    .footer-note {
+      padding: 10px 12px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted);
+      display: flex; justify-content: space-between;
+    }
+
     @media (max-width: 900px) {
       body { overflow: auto; }
-      .desktop-icons, .desktop-taskbar { display: none !important; }
-      .app-shell {
-        min-height: 100dvh !important;
-        padding: 0 !important;
-        align-items: stretch !important;
-      }
+      .desktop-icons, .taskbar { display: none !important; }
+      .app-shell { padding: 0; min-height: 100dvh; align-items: stretch; }
       #appWindow {
-        max-width: none !important;
-        height: 100dvh !important;
-        border-radius: 0 !important;
-        border: none !important;
+        height: 100dvh; max-width: none; border: 0; border-radius: 0;
       }
-      .main-panes { flex-direction: column !important; }
+      .main-panes, .editor-split { flex-direction: column; }
       .library-pane {
-        width: 100% !important;
-        max-height: 38vh;
-        border-right: none !important;
-        border-bottom: 1px solid rgba(255,255,255,.05);
+        width: 100%; max-height: 32vh; border-right: 0;
+        border-bottom: 1px solid var(--line);
       }
       .inspector-pane {
-        width: 100% !important;
-        max-height: 40vh;
-        border-left: none !important;
-        border-top: 1px solid rgba(255,255,255,.05);
+        width: 100%; max-height: 36vh; border-left: 0;
+        border-top: 1px solid var(--line);
       }
-      .editor-split { flex-direction: column !important; }
-      .speed-control { display: none !important; }
-      .toast { bottom: 1rem; right: 1rem; left: 1rem; }
+      .title-sub, .speed-wrap { display: none; }
+      .toast { left: 12px; right: 12px; bottom: 12px; }
     }
   </style>
 </head>
-<body class="text-desk-200">
+<body>
   <div id="bootError"></div>
-  <div class="wallpaper-grid fixed inset-0 pointer-events-none"></div>
 
-  <!-- Desktop icons -->
-  <div class="desktop-icons absolute left-6 top-6 z-0 space-y-5 text-center select-none">
-    <div class="w-16 flex flex-col items-center gap-1 opacity-80">
-      <div class="w-12 h-12 rounded-xl bg-desk-800/80 border border-white/10 flex items-center justify-center shadow-lg">
-        <i class="fa-solid fa-folder text-desk-accent text-xl"></i>
-      </div>
-      <span class="text-[11px] text-desk-300">Projects</span>
-    </div>
-    <div class="w-16 flex flex-col items-center gap-1 opacity-80">
-      <div class="w-12 h-12 rounded-xl bg-desk-800/80 border border-white/10 flex items-center justify-center shadow-lg">
-        <i class="fa-solid fa-clapperboard text-desk-accent2 text-xl"></i>
-      </div>
-      <span class="text-[11px] text-desk-300">Macro Studio</span>
-    </div>
+  <div class="desktop-icons" aria-hidden="true">
+    <div class="desk-icon"><div class="box"><i class="fa-solid fa-folder"></i></div>Projects</div>
+    <div class="desk-icon"><div class="box"><i class="fa-solid fa-clapperboard"></i></div>Macro Studio</div>
   </div>
 
-  <!-- App Window -->
-  <div class="app-shell relative z-10 min-h-screen flex items-center justify-center p-4 md:p-8 pb-16 md:pb-8">
-    <div id="appWindow" class="w-full max-w-[1280px] backdrop-blur-xl border border-white/10 rounded-2xl shadow-window overflow-hidden flex flex-col">
-
-      <!-- Title bar -->
-      <header class="titlebar h-11 shrink-0 px-3 flex items-center justify-between bg-desk-850 border-b border-white/5">
-        <div class="flex items-center gap-3 no-drag">
-          <div class="flex items-center gap-1.5">
-            <button class="w-3 h-3 rounded-full bg-[#ff5f57] hover:brightness-110" title="Close"></button>
-            <button class="w-3 h-3 rounded-full bg-[#febc2e] hover:brightness-110" title="Minimize"></button>
-            <button class="w-3 h-3 rounded-full bg-[#28c840] hover:brightness-110" title="Maximize"></button>
-          </div>
-          <div class="flex items-center gap-2 text-sm font-medium text-desk-200">
-            <span class="w-6 h-6 rounded-lg bg-gradient-to-br from-desk-accent to-desk-accent2 flex items-center justify-center shadow-glow">
-              <i class="fa-solid fa-wand-magic-sparkles text-[11px] text-white"></i>
-            </span>
-            Macro Studio
-            <span class="text-desk-500 font-normal">— Automation Editor</span>
-          </div>
+  <div class="app-shell">
+    <div id="appWindow">
+      <header class="titlebar">
+        <div class="row">
+          <div class="traffic"><span class="dot-red"></span><span class="dot-yellow"></span><span class="dot-green"></span></div>
+          <span class="brand-badge"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+          <div class="title-text">Macro Studio <span class="title-sub">— Automation Editor</span></div>
         </div>
-        <div class="flex items-center gap-2 no-drag">
-          <div class="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-desk-800 border border-white/5 text-xs text-desk-400">
+        <div class="row">
+          <label class="search">
             <i class="fa-solid fa-magnifying-glass"></i>
-            <input id="globalSearch" type="text" placeholder="Search macros…" class="bg-transparent outline-none w-40 text-desk-200 placeholder:text-desk-500" />
-            <kbd class="text-[10px] px-1.5 py-0.5 rounded bg-desk-700 text-desk-300">⌘K</kbd>
-          </div>
-          <button id="themeHint" class="w-8 h-8 rounded-lg hover:bg-white/5 text-desk-400" title="Settings">
-            <i class="fa-solid fa-gear"></i>
-          </button>
+            <input id="globalSearch" type="search" placeholder="Search macros…" />
+          </label>
+          <button class="icon-btn" id="themeHint" title="Settings"><i class="fa-solid fa-gear"></i></button>
         </div>
       </header>
 
-      <!-- Toolbar -->
-      <div class="shrink-0 h-12 px-3 flex items-center justify-between gap-3 border-b border-white/5 bg-desk-900/80">
-        <div class="flex items-center gap-1.5">
-          <button id="btnNew" class="toolbar-btn" title="New Macro"><i class="fa-solid fa-plus"></i><span class="hidden md:inline">New</span></button>
-          <button id="btnDuplicate" class="toolbar-btn" title="Duplicate"><i class="fa-regular fa-clone"></i></button>
-          <button id="btnDelete" class="toolbar-btn text-desk-danger/90" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
-          <div class="w-px h-6 bg-white/10 mx-1"></div>
-          <button id="btnRecord" class="toolbar-btn" title="Record"><i class="fa-solid fa-circle text-desk-danger text-[10px]"></i><span class="hidden md:inline">Record</span></button>
-          <button id="btnPlay" class="toolbar-btn" title="Play"><i class="fa-solid fa-play text-desk-success"></i><span class="hidden md:inline">Play</span></button>
-          <button id="btnStop" class="toolbar-btn" title="Stop"><i class="fa-solid fa-stop"></i></button>
-          <button id="btnStep" class="toolbar-btn" title="Step"><i class="fa-solid fa-forward-step"></i></button>
-          <div class="w-px h-6 bg-white/10 mx-1"></div>
-          <button id="btnAddStep" class="toolbar-btn" title="Add Step"><i class="fa-solid fa-list-ol"></i><span class="hidden lg:inline">Add Step</span></button>
-          <button id="btnExport" class="toolbar-btn" title="Export JSON"><i class="fa-solid fa-file-export"></i></button>
+      <div class="toolbar">
+        <div class="row">
+          <button class="btn" id="btnNew"><i class="fa-solid fa-plus"></i> New</button>
+          <button class="btn" id="btnDuplicate" title="Duplicate"><i class="fa-regular fa-clone"></i></button>
+          <button class="btn danger" id="btnDelete" title="Delete"><i class="fa-regular fa-trash-can"></i></button>
+          <button class="btn" id="btnRecord"><i class="fa-solid fa-circle" style="color:var(--danger);font-size:10px"></i> Record</button>
+          <button class="btn" id="btnPlay"><i class="fa-solid fa-play" style="color:var(--success)"></i> Play</button>
+          <button class="btn" id="btnStop"><i class="fa-solid fa-stop"></i></button>
+          <button class="btn" id="btnAddStep"><i class="fa-solid fa-list-ol"></i> Add Step</button>
+          <button class="btn" id="btnExport"><i class="fa-solid fa-file-export"></i></button>
         </div>
-        <div class="flex items-center gap-3 text-xs">
-          <div id="recBadge" class="hidden items-center gap-2 px-2.5 py-1 rounded-full bg-desk-danger/15 text-desk-danger border border-desk-danger/30">
-            <span class="w-2 h-2 rounded-full bg-desk-danger pulse-dot"></span>
-            Recording
-          </div>
-          <div id="playBadge" class="hidden items-center gap-2 px-2.5 py-1 rounded-full bg-desk-success/15 text-desk-success border border-desk-success/30">
-            <i class="fa-solid fa-play text-[10px]"></i>
-            Playing
-          </div>
-          <label class="speed-control flex items-center gap-2 text-desk-400">
+        <div class="row">
+          <div id="recBadge" class="badge rec"><span class="pulse"></span> Recording</div>
+          <div id="playBadge" class="badge play"><i class="fa-solid fa-play"></i> Playing</div>
+          <label class="speed-wrap row" style="font-size:12px;color:var(--muted)">
             Speed
-            <input id="speedRange" type="range" min="0.5" max="3" step="0.5" value="1" class="w-20 accent-desk-accent" />
-            <span id="speedLabel" class="w-8 text-desk-200">1×</span>
+            <input id="speedRange" type="range" min="0.5" max="3" step="0.5" value="1" />
+            <span id="speedLabel">1×</span>
           </label>
         </div>
       </div>
 
-      <!-- Main body -->
-      <div class="main-panes flex-1 min-h-0 flex">
-        <!-- Sidebar -->
-        <aside class="library-pane w-[260px] shrink-0 border-r border-white/5 bg-desk-850/70 flex flex-col">
-          <div class="px-3 py-3 flex items-center justify-between">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-desk-400">Library</h2>
-            <button id="btnSort" class="text-desk-500 hover:text-desk-200 text-xs" title="Sort"><i class="fa-solid fa-arrow-down-a-z"></i></button>
+      <div class="main-panes">
+        <aside class="library-pane">
+          <div class="pane-head"><span>Library</span><button class="icon-btn" id="btnSort" title="Sort"><i class="fa-solid fa-arrow-down-a-z"></i></button></div>
+          <div class="filters">
+            <button data-filter="all" class="filter-btn active">All</button>
+            <button data-filter="favorites" class="filter-btn">★ Fav</button>
+            <button data-filter="recent" class="filter-btn">Recent</button>
           </div>
-          <div class="px-3 pb-2">
-            <div class="flex gap-1 p-1 rounded-lg bg-desk-800/80 border border-white/5 text-xs">
-              <button data-filter="all" class="filter-btn flex-1 py-1.5 rounded-md bg-desk-accent/20 text-desk-accent font-medium">All</button>
-              <button data-filter="favorites" class="filter-btn flex-1 py-1.5 rounded-md text-desk-400 hover:text-desk-200">★ Fav</button>
-              <button data-filter="recent" class="filter-btn flex-1 py-1.5 rounded-md text-desk-400 hover:text-desk-200">Recent</button>
-            </div>
-          </div>
-          <div id="macroList" class="flex-1 overflow-y-auto scrollbar px-2 pb-3 space-y-1"></div>
-          <div class="p-3 border-t border-white/5 text-[11px] text-desk-500 flex items-center justify-between">
-            <span id="macroCount">0 macros</span>
-            <span><i class="fa-solid fa-hard-drive mr-1"></i>Local</span>
-          </div>
+          <div id="macroList" class="scroll"></div>
+          <div class="footer-note"><span id="macroCount">0 macros</span><span>Local</span></div>
         </aside>
 
-        <!-- Editor -->
-        <main class="flex-1 min-w-0 flex flex-col bg-desk-900">
-          <div class="px-4 py-3 border-b border-white/5 flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <input id="macroName" class="bg-transparent text-lg font-semibold text-white outline-none border-b border-transparent focus:border-desk-accent/50 truncate max-w-full" />
-                <button id="btnFavorite" class="text-desk-500 hover:text-desk-warn" title="Favorite"><i class="fa-regular fa-star"></i></button>
+        <main class="editor-pane">
+          <div class="editor-top">
+            <div style="min-width:0;flex:1">
+              <div class="row">
+                <input id="macroName" />
+                <button class="icon-btn" id="btnFavorite" title="Favorite"><i class="fa-regular fa-star"></i></button>
               </div>
-              <p id="macroMeta" class="text-xs text-desk-500 mt-1"></p>
+              <div id="macroMeta"></div>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <span id="hotkeyBadge" class="px-2 py-1 rounded-md bg-desk-800 border border-white/5 text-xs font-mono text-desk-300">⌘⇧M</span>
-              <select id="runMode" class="text-xs bg-desk-800 border border-white/5 rounded-md px-2 py-1.5 outline-none text-desk-200">
+            <div class="row">
+              <span id="hotkeyBadge" class="chip">⌘⇧M</span>
+              <select id="runMode" class="chip">
                 <option value="once">Run once</option>
                 <option value="loop">Loop</option>
                 <option value="hotkey">Hotkey only</option>
@@ -273,31 +429,19 @@
             </div>
           </div>
 
-          <div class="editor-split flex-1 min-h-0 flex">
-            <!-- Steps -->
-            <section class="flex-1 min-w-0 flex flex-col">
-              <div class="px-4 py-2 flex items-center justify-between text-xs text-desk-400 border-b border-white/5">
-                <span><i class="fa-solid fa-list-check mr-1.5"></i>Action Timeline</span>
-                <span id="stepCount">0 steps</span>
-              </div>
-              <div id="stepList" class="flex-1 overflow-y-auto scrollbar p-3 space-y-2"></div>
+          <div class="editor-split">
+            <section class="timeline-pane">
+              <div class="section-bar"><span><i class="fa-solid fa-list-check"></i> Action Timeline</span><span id="stepCount">0 steps</span></div>
+              <div id="stepList" class="scroll"></div>
             </section>
 
-            <!-- Inspector -->
-            <aside class="inspector-pane w-[300px] shrink-0 border-l border-white/5 bg-desk-850/40 flex flex-col">
-              <div class="px-4 py-3 border-b border-white/5">
-                <h3 class="text-xs font-semibold uppercase tracking-wider text-desk-400">Inspector</h3>
-              </div>
-              <div id="inspectorEmpty" class="flex-1 flex items-center justify-center p-6 text-center text-desk-500 text-sm">
-                <div>
-                  <i class="fa-regular fa-hand-pointer text-2xl mb-2 opacity-50"></i>
-                  <p>Select a step to edit its properties</p>
-                </div>
-              </div>
-              <form id="inspectorForm" class="hidden flex-1 overflow-y-auto scrollbar p-4 space-y-4">
-                <div>
-                  <label class="field-label">Action Type</label>
-                  <select id="fieldType" class="field-input">
+            <aside class="inspector-pane">
+              <div class="pane-head">Inspector</div>
+              <div id="inspectorEmpty">Select a step to edit its properties</div>
+              <form id="inspectorForm">
+                <div class="field">
+                  <label>Action Type</label>
+                  <select id="fieldType">
                     <option value="click">Mouse Click</option>
                     <option value="type">Type Text</option>
                     <option value="hotkey">Hotkey</option>
@@ -307,35 +451,17 @@
                     <option value="open">Open App / URL</option>
                   </select>
                 </div>
-                <div>
-                  <label class="field-label">Label</label>
-                  <input id="fieldLabel" type="text" class="field-input" />
+                <div class="field"><label>Label</label><input id="fieldLabel" /></div>
+                <div class="field"><label>Target / Value</label><input id="fieldTarget" /></div>
+                <div class="grid2">
+                  <div class="field"><label>X</label><input id="fieldX" type="number" /></div>
+                  <div class="field"><label>Y</label><input id="fieldY" type="number" /></div>
                 </div>
-                <div>
-                  <label class="field-label">Target / Value</label>
-                  <input id="fieldTarget" type="text" class="field-input font-mono text-[12px]" />
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="field-label">X</label>
-                    <input id="fieldX" type="number" class="field-input font-mono" />
-                  </div>
-                  <div>
-                    <label class="field-label">Y</label>
-                    <input id="fieldY" type="number" class="field-input font-mono" />
-                  </div>
-                </div>
-                <div>
-                  <label class="field-label">Delay (ms)</label>
-                  <input id="fieldDelay" type="number" min="0" step="50" class="field-input font-mono" />
-                </div>
-                <div>
-                  <label class="field-label">Notes</label>
-                  <textarea id="fieldNotes" rows="3" class="field-input resize-none"></textarea>
-                </div>
-                <div class="flex gap-2 pt-1">
-                  <button type="button" id="btnApplyStep" class="flex-1 py-2 rounded-lg bg-desk-accent hover:brightness-110 text-white text-sm font-medium">Apply</button>
-                  <button type="button" id="btnRemoveStep" class="px-3 py-2 rounded-lg bg-desk-danger/15 text-desk-danger border border-desk-danger/30 hover:bg-desk-danger/25 text-sm"><i class="fa-regular fa-trash-can"></i></button>
+                <div class="field"><label>Delay (ms)</label><input id="fieldDelay" type="number" min="0" step="50" /></div>
+                <div class="field"><label>Notes</label><textarea id="fieldNotes" rows="3"></textarea></div>
+                <div class="row">
+                  <button type="button" class="primary" id="btnApplyStep">Apply</button>
+                  <button type="button" class="danger-outline" id="btnRemoveStep"><i class="fa-regular fa-trash-can"></i></button>
                 </div>
               </form>
             </aside>
@@ -343,14 +469,12 @@
         </main>
       </div>
 
-      <!-- Status bar -->
-      <footer class="h-8 shrink-0 px-3 flex items-center justify-between text-[11px] bg-desk-850 border-t border-white/5 text-desk-400">
-        <div class="flex items-center gap-3">
-          <span id="statusText"><i class="fa-solid fa-circle-check text-desk-success mr-1"></i>Ready</span>
-          <span class="opacity-40">|</span>
-          <span id="coordsHint"><i class="fa-solid fa-crosshairs mr-1"></i>x: —, y: —</span>
+      <footer class="statusbar">
+        <div class="row">
+          <span id="statusText"><i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Ready</span>
+          <span id="coordsHint">x: —, y: —</span>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="row">
           <span id="clock"></span>
           <span>Macro Studio 1.0</span>
         </div>
@@ -358,748 +482,507 @@
     </div>
   </div>
 
-  <!-- Taskbar -->
-  <div class="desktop-taskbar fixed bottom-0 inset-x-0 h-12 z-20 px-3 flex items-center justify-between bg-desk-950/80 backdrop-blur-xl border-t border-white/10">
-    <div class="flex items-center gap-2">
-      <button class="w-9 h-9 rounded-xl bg-gradient-to-br from-desk-accent to-desk-accent2 text-white shadow-glow flex items-center justify-center">
-        <i class="fa-solid fa-border-all"></i>
-      </button>
-      <div class="h-7 w-px bg-white/10 mx-1"></div>
-      <button class="px-3 h-9 rounded-lg bg-white/10 border border-white/10 text-sm flex items-center gap-2">
-        <i class="fa-solid fa-wand-magic-sparkles text-desk-accent"></i>
-        Macro Studio
-      </button>
+  <div class="taskbar">
+    <div class="row">
+      <button class="start"><i class="fa-solid fa-border-all"></i></button>
+      <div class="task-pill"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--accent)"></i> Macro Studio</div>
     </div>
-    <div class="flex items-center gap-4 text-xs text-desk-300">
+    <div class="row" style="font-size:12px;color:#a8b0c4">
       <i class="fa-solid fa-wifi"></i>
-      <i class="fa-solid fa-volume-high"></i>
-      <span id="taskbarClock" class="font-medium tabular-nums"></span>
+      <span id="taskbarClock"></span>
     </div>
   </div>
 
-  <!-- Modal: Add Step -->
-  <div id="modalBackdrop" class="fixed inset-0 z-40 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-    <div class="w-full max-w-md bg-desk-850 border border-white/10 rounded-2xl shadow-window overflow-hidden">
-      <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-        <h3 class="font-semibold text-white">Add Action Step</h3>
-        <button id="modalClose" class="w-8 h-8 rounded-lg hover:bg-white/5 text-desk-400"><i class="fa-solid fa-xmark"></i></button>
+  <div id="modalBackdrop" class="modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <strong>Add Action Step</strong>
+        <button class="icon-btn" id="modalClose"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div class="p-4 grid grid-cols-2 gap-2" id="stepTypeGrid"></div>
+      <div id="stepTypeGrid" class="type-grid"></div>
     </div>
   </div>
 
-  <!-- Toast -->
-  <div id="toast" class="toast fixed bottom-16 right-4 z-50 px-4 py-3 rounded-xl bg-desk-800 border border-white/10 shadow-window text-sm text-desk-100 flex items-center gap-2">
-    <i class="fa-solid fa-circle-info text-desk-accent"></i>
-    <span id="toastMsg">Saved</span>
-  </div>
-
-  <style>
-    .toolbar-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: .4rem;
-      padding: .4rem .7rem;
-      border-radius: .6rem;
-      font-size: .75rem;
-      color: #d0d5e2;
-      background: transparent;
-    }
-    .toolbar-btn:hover { background: rgba(255,255,255,.06); }
-    .toolbar-btn:active { transform: translateY(1px); }
-    .field-label {
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: .04em;
-      text-transform: uppercase;
-      color: #7b849f;
-      margin-bottom: .35rem;
-    }
-    .field-input {
-      width: 100%;
-      background: #1c2130;
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: .6rem;
-      padding: .55rem .7rem;
-      color: #d0d5e2;
-      font-size: .875rem;
-      outline: none;
-    }
-    .field-input:focus { border-color: rgba(91,140,255,.55); box-shadow: 0 0 0 3px rgba(91,140,255,.15); }
-  </style>
+  <div id="toast" class="toast"><span id="toastMsg">Saved</span></div>
 
   <script>
-    const STEP_TYPES = {
-      click:  { icon: 'fa-arrow-pointer',   color: 'text-sky-400',     label: 'Mouse Click' },
-      type:   { icon: 'fa-keyboard',        color: 'text-violet-400',  label: 'Type Text' },
-      hotkey: { icon: 'fa-command',         color: 'text-amber-400',   label: 'Hotkey' },
-      wait:   { icon: 'fa-hourglass-half',  color: 'text-emerald-400', label: 'Wait / Delay' },
-      move:   { icon: 'fa-up-down-left-right', color: 'text-cyan-400', label: 'Mouse Move' },
-      scroll: { icon: 'fa-scroll',          color: 'text-pink-400',    label: 'Scroll' },
-      open:   { icon: 'fa-arrow-up-right-from-square', color: 'text-orange-400', label: 'Open App / URL' }
-    };
-
-    const uid = () => Math.random().toString(36).slice(2, 9);
-
-    const seedMacros = [
-      {
-        id: 'm1',
-        name: 'Morning Startup',
-        favorite: true,
-        hotkey: '⌘⇧M',
-        runMode: 'once',
-        updatedAt: Date.now() - 1000 * 60 * 20,
-        steps: [
-          { id: 's1', type: 'open',   label: 'Open browser', target: 'https://mail.example.com', x: 0, y: 0, delay: 800, notes: 'Launch inbox' },
-          { id: 's2', type: 'wait',   label: 'Wait for load', target: '', x: 0, y: 0, delay: 1500, notes: '' },
-          { id: 's3', type: 'click',  label: 'Compose button', target: '#compose', x: 1180, y: 84, delay: 300, notes: '' },
-          { id: 's4', type: 'type',   label: 'Daily standup note', target: 'Standup ready — reviewing blockers', x: 0, y: 0, delay: 200, notes: '' },
-          { id: 's5', type: 'hotkey', label: 'Send draft later', target: '⌘⇧D', x: 0, y: 0, delay: 100, notes: 'Save as draft' }
-        ]
-      },
-      {
-        id: 'm2',
-        name: 'Screenshot & Annotate',
-        favorite: false,
-        hotkey: '⌘⇧S',
-        runMode: 'hotkey',
-        updatedAt: Date.now() - 1000 * 60 * 60 * 5,
-        steps: [
-          { id: 's1', type: 'hotkey', label: 'Capture region', target: '⌘⇧4', x: 0, y: 0, delay: 200, notes: '' },
-          { id: 's2', type: 'wait',   label: 'Select area', target: '', x: 0, y: 0, delay: 2500, notes: 'User selects region' },
-          { id: 's3', type: 'open',   label: 'Open Preview', target: 'Preview.app', x: 0, y: 0, delay: 600, notes: '' },
-          { id: 's4', type: 'hotkey', label: 'Markup tool', target: '⌘⇧A', x: 0, y: 0, delay: 250, notes: '' }
-        ]
-      },
-      {
-        id: 'm3',
-        name: 'Form Autofill Demo',
-        favorite: true,
-        hotkey: '⌘⌥F',
-        runMode: 'once',
-        updatedAt: Date.now() - 1000 * 60 * 60 * 26,
-        steps: [
-          { id: 's1', type: 'click', label: 'Focus name field', target: 'input[name=name]', x: 420, y: 310, delay: 150, notes: '' },
-          { id: 's2', type: 'type',  label: 'Enter name', target: 'Alex Rivera', x: 0, y: 0, delay: 100, notes: '' },
-          { id: 's3', type: 'click', label: 'Focus email', target: 'input[name=email]', x: 420, y: 370, delay: 150, notes: '' },
-          { id: 's4', type: 'type',  label: 'Enter email', target: 'alex@studio.dev', x: 0, y: 0, delay: 100, notes: '' },
-          { id: 's5', type: 'scroll', label: 'Scroll to submit', target: 'down:400', x: 0, y: 0, delay: 200, notes: '' },
-          { id: 's6', type: 'click', label: 'Submit', target: 'button[type=submit]', x: 480, y: 720, delay: 100, notes: '' }
-        ]
-      }
-    ];
-
-    const clone = (value) => {
-      if (typeof structuredClone === 'function') return structuredClone(value);
-      return JSON.parse(JSON.stringify(value));
-    };
-
-    const state = {
-      macros: clone(seedMacros),
-      selectedMacroId: 'm1',
-      selectedStepId: null,
-      filter: 'all',
-      recording: false,
-      playing: false,
-      playTimer: null,
-      playIndex: 0,
-      speed: 1,
-      sortAsc: true
-    };
-
-    const $ = (sel) => document.querySelector(sel);
-    const $$ = (sel) => [...document.querySelectorAll(sel)];
-
-    function selectedMacro() {
-      return state.macros.find(m => m.id === state.selectedMacroId) || null;
-    }
-
-    function selectedStep() {
-      const m = selectedMacro();
-      if (!m) return null;
-      return m.steps.find(s => s.id === state.selectedStepId) || null;
-    }
-
-    function toast(msg) {
-      const el = $('#toast');
-      $('#toastMsg').textContent = msg;
-      el.classList.add('show');
-      clearTimeout(toast._t);
-      toast._t = setTimeout(() => el.classList.remove('show'), 2200);
-    }
-
-    function setStatus(html) {
-      $('#statusText').innerHTML = html;
-    }
-
-    function formatRelative(ts) {
-      const mins = Math.round((Date.now() - ts) / 60000);
-      if (mins < 1) return 'just now';
-      if (mins < 60) return `${mins}m ago`;
-      const hrs = Math.round(mins / 60);
-      if (hrs < 24) return `${hrs}h ago`;
-      return `${Math.round(hrs / 24)}d ago`;
-    }
-
-    function filteredMacros() {
-      let list = [...state.macros];
-      if (state.filter === 'favorites') list = list.filter(m => m.favorite);
-      if (state.filter === 'recent') list = list.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5);
-      else list = list.sort((a, b) => state.sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
-      const q = ($('#globalSearch').value || '').trim().toLowerCase();
-      if (q) list = list.filter(m => m.name.toLowerCase().includes(q) || m.steps.some(s => (s.label + s.target).toLowerCase().includes(q)));
-      return list;
-    }
-
-    function renderMacroList() {
-      const list = filteredMacros();
-      $('#macroList').innerHTML = list.map(m => `
-        <button class="macro-item w-full text-left px-3 py-2.5 rounded-xl border border-transparent hover:bg-white/[.04] transition ${m.id === state.selectedMacroId ? 'active' : ''}" data-id="${m.id}">
-          <div class="flex items-start gap-2">
-            <span class="mt-0.5 w-8 h-8 rounded-lg bg-desk-800 border border-white/5 flex items-center justify-center shrink-0">
-              <i class="fa-solid fa-film text-desk-accent text-xs"></i>
-            </span>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-1.5">
-                <span class="truncate text-sm font-medium text-desk-100">${escapeHtml(m.name)}</span>
-                ${m.favorite ? '<i class="fa-solid fa-star text-desk-warn text-[10px]"></i>' : ''}
-              </div>
-              <div class="text-[11px] text-desk-500 mt-0.5 flex items-center gap-2">
-                <span>${m.steps.length} steps</span>
-                <span>·</span>
-                <span>${formatRelative(m.updatedAt)}</span>
-              </div>
-            </div>
-          </div>
-        </button>
-      `).join('') || `<div class="text-center text-desk-500 text-sm py-10">No macros found</div>`;
-
-      $('#macroCount').textContent = `${state.macros.length} macro${state.macros.length === 1 ? '' : 's'}`;
-
-      $$('.macro-item').forEach(btn => {
-        btn.addEventListener('click', () => {
-          state.selectedMacroId = btn.dataset.id;
-          state.selectedStepId = null;
-          renderAll();
-        });
-      });
-    }
-
-    function stepSummary(step) {
-      switch (step.type) {
-        case 'click': return `Click (${step.x}, ${step.y}) ${step.target || ''}`.trim();
-        case 'type': return `"${step.target}"`;
-        case 'hotkey': return step.target || '⌘…';
-        case 'wait': return `${step.delay} ms`;
-        case 'move': return `Move to (${step.x}, ${step.y})`;
-        case 'scroll': return step.target || 'scroll';
-        case 'open': return step.target || 'open…';
-        default: return step.target || '';
-      }
-    }
-
-    function renderSteps() {
-      const m = selectedMacro();
-      const list = $('#stepList');
-      if (!m) {
-        list.innerHTML = `<div class="h-full flex items-center justify-center text-desk-500">Select or create a macro</div>`;
-        return;
-      }
-
-      $('#macroName').value = m.name;
-      $('#macroMeta').textContent = `${m.steps.length} actions · last edited ${formatRelative(m.updatedAt)} · hotkey ${m.hotkey}`;
-      $('#hotkeyBadge').textContent = m.hotkey;
-      $('#runMode').value = m.runMode;
-      $('#stepCount').textContent = `${m.steps.length} step${m.steps.length === 1 ? '' : 's'}`;
-      const favIcon = $('#btnFavorite i');
-      favIcon.className = m.favorite ? 'fa-solid fa-star text-desk-warn' : 'fa-regular fa-star';
-
-      if (!m.steps.length) {
-        list.innerHTML = `
-          <div class="h-full min-h-[240px] flex flex-col items-center justify-center text-desk-500 gap-3 border border-dashed border-white/10 rounded-2xl">
-            <i class="fa-solid fa-clapperboard text-3xl opacity-40"></i>
-            <p class="text-sm">No steps yet — record or add an action</p>
-            <button id="emptyAddStep" class="px-3 py-1.5 rounded-lg bg-desk-accent/20 text-desk-accent text-sm border border-desk-accent/30">Add first step</button>
-          </div>`;
-        $('#emptyAddStep')?.addEventListener('click', openAddStepModal);
-        return;
-      }
-
-      list.innerHTML = m.steps.map((step, i) => {
-        const meta = STEP_TYPES[step.type] || STEP_TYPES.click;
-        const active = step.id === state.selectedStepId;
-        const playing = state.playing && state.playIndex === i;
-        return `
-          <div class="step-item group flex gap-3 p-3 rounded-xl border border-white/5 bg-desk-800/40 hover:bg-desk-800/70 cursor-pointer transition ${active ? 'active' : ''} ${playing ? 'ring-1 ring-desk-success/50' : ''}" data-id="${step.id}" draggable="true">
-            <div class="flex flex-col items-center gap-1 pt-0.5">
-              <span class="w-6 h-6 rounded-md bg-desk-700 text-[11px] font-mono text-desk-300 flex items-center justify-center">${i + 1}</span>
-              ${i < m.steps.length - 1 ? '<div class="w-px flex-1 bg-white/10 my-1"></div>' : ''}
-            </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="w-7 h-7 rounded-lg bg-desk-900 border border-white/5 flex items-center justify-center">
-                  <i class="fa-solid ${meta.icon} ${meta.color} text-xs"></i>
-                </span>
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="text-sm font-medium text-desk-100 truncate">${escapeHtml(step.label || meta.label)}</span>
-                    <span class="text-[11px] text-desk-500 font-mono shrink-0">${step.delay}ms</span>
-                  </div>
-                  <div class="text-[11px] text-desk-400 truncate font-mono mt-0.5">${escapeHtml(stepSummary(step))}</div>
-                </div>
-              </div>
-            </div>
-            <div class="opacity-0 group-hover:opacity-100 flex flex-col gap-1">
-              <button class="step-up w-7 h-7 rounded-md hover:bg-white/10 text-desk-400" data-id="${step.id}" title="Move up"><i class="fa-solid fa-chevron-up text-[10px]"></i></button>
-              <button class="step-down w-7 h-7 rounded-md hover:bg-white/10 text-desk-400" data-id="${step.id}" title="Move down"><i class="fa-solid fa-chevron-down text-[10px]"></i></button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      $$('.step-item').forEach(el => {
-        el.addEventListener('click', (e) => {
-          if (e.target.closest('.step-up, .step-down')) return;
-          state.selectedStepId = el.dataset.id;
-          renderInspector();
-          $$('.step-item').forEach(s => s.classList.toggle('active', s.dataset.id === state.selectedStepId));
-        });
-        el.addEventListener('dragstart', (e) => {
-          e.dataTransfer.setData('text/plain', el.dataset.id);
-          el.classList.add('opacity-50');
-        });
-        el.addEventListener('dragend', () => el.classList.remove('opacity-50'));
-        el.addEventListener('dragover', (e) => e.preventDefault());
-        el.addEventListener('drop', (e) => {
-          e.preventDefault();
-          const fromId = e.dataTransfer.getData('text/plain');
-          const toId = el.dataset.id;
-          reorderSteps(fromId, toId);
-        });
-      });
-
-      $$('.step-up').forEach(btn => btn.addEventListener('click', () => moveStep(btn.dataset.id, -1)));
-      $$('.step-down').forEach(btn => btn.addEventListener('click', () => moveStep(btn.dataset.id, 1)));
-    }
-
-    function renderInspector() {
-      const step = selectedStep();
-      if (!step) {
-        $('#inspectorForm').classList.add('hidden');
-        $('#inspectorEmpty').classList.remove('hidden');
-        return;
-      }
-      $('#inspectorEmpty').classList.add('hidden');
-      $('#inspectorForm').classList.remove('hidden');
-      $('#fieldType').value = step.type;
-      $('#fieldLabel').value = step.label || '';
-      $('#fieldTarget').value = step.target || '';
-      $('#fieldX').value = step.x ?? 0;
-      $('#fieldY').value = step.y ?? 0;
-      $('#fieldDelay').value = step.delay ?? 0;
-      $('#fieldNotes').value = step.notes || '';
-    }
-
-    function renderBadges() {
-      $('#recBadge').classList.toggle('hidden', !state.recording);
-      $('#recBadge').classList.toggle('flex', state.recording);
-      $('#playBadge').classList.toggle('hidden', !state.playing);
-      $('#playBadge').classList.toggle('flex', state.playing);
-    }
-
-    function renderAll() {
-      renderMacroList();
-      renderSteps();
-      renderInspector();
-      renderBadges();
-    }
-
-    function escapeHtml(str) {
-      return String(str)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;');
-    }
-
-    function touchMacro() {
-      const m = selectedMacro();
-      if (m) m.updatedAt = Date.now();
-    }
-
-    function reorderSteps(fromId, toId) {
-      const m = selectedMacro();
-      if (!m || fromId === toId) return;
-      const from = m.steps.findIndex(s => s.id === fromId);
-      const to = m.steps.findIndex(s => s.id === toId);
-      if (from < 0 || to < 0) return;
-      const [item] = m.steps.splice(from, 1);
-      m.steps.splice(to, 0, item);
-      touchMacro();
-      renderSteps();
-      setStatus('<i class="fa-solid fa-arrows-up-down text-desk-accent mr-1"></i>Reordered steps');
-    }
-
-    function moveStep(id, dir) {
-      const m = selectedMacro();
-      if (!m) return;
-      const i = m.steps.findIndex(s => s.id === id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= m.steps.length) return;
-      [m.steps[i], m.steps[j]] = [m.steps[j], m.steps[i]];
-      touchMacro();
-      renderSteps();
-    }
-
-    function openAddStepModal() {
-      const grid = $('#stepTypeGrid');
-      grid.innerHTML = Object.entries(STEP_TYPES).map(([type, meta]) => `
-        <button data-type="${type}" class="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-desk-800/50 hover:border-desk-accent/40 hover:bg-desk-accent/10 text-left transition">
-          <span class="w-9 h-9 rounded-lg bg-desk-900 flex items-center justify-center"><i class="fa-solid ${meta.icon} ${meta.color}"></i></span>
-          <span class="text-sm text-desk-100">${meta.label}</span>
-        </button>
-      `).join('');
-      grid.querySelectorAll('button').forEach(btn => {
-        btn.addEventListener('click', () => {
-          addStep(btn.dataset.type);
-          closeModal();
-        });
-      });
-      $('#modalBackdrop').classList.remove('hidden');
-      $('#modalBackdrop').classList.add('flex');
-    }
-
-    function closeModal() {
-      $('#modalBackdrop').classList.add('hidden');
-      $('#modalBackdrop').classList.remove('flex');
-    }
-
-    function addStep(type = 'click') {
-      const m = selectedMacro();
-      if (!m) return;
-      const meta = STEP_TYPES[type];
-      const step = {
-        id: uid(),
-        type,
-        label: meta.label,
-        target: type === 'type' ? 'Hello from Macro Studio' : type === 'hotkey' ? '⌘S' : type === 'open' ? 'https://example.com' : type === 'scroll' ? 'down:200' : '',
-        x: type === 'click' || type === 'move' ? 640 : 0,
-        y: type === 'click' || type === 'move' ? 360 : 0,
-        delay: type === 'wait' ? 1000 : 200,
-        notes: ''
+    (function () {
+      const STEP_TYPES = {
+        click:  { icon: 'fa-arrow-pointer', label: 'Mouse Click' },
+        type:   { icon: 'fa-keyboard', label: 'Type Text' },
+        hotkey: { icon: 'fa-command', label: 'Hotkey' },
+        wait:   { icon: 'fa-hourglass-half', label: 'Wait / Delay' },
+        move:   { icon: 'fa-up-down-left-right', label: 'Mouse Move' },
+        scroll: { icon: 'fa-scroll', label: 'Scroll' },
+        open:   { icon: 'fa-arrow-up-right-from-square', label: 'Open App / URL' }
       };
-      m.steps.push(step);
-      state.selectedStepId = step.id;
-      touchMacro();
-      renderAll();
-      toast('Step added');
-      setStatus('<i class="fa-solid fa-plus text-desk-accent mr-1"></i>Step added to timeline');
-    }
 
-    function applyStepEdits() {
-      const step = selectedStep();
-      if (!step) return;
-      step.type = $('#fieldType').value;
-      step.label = $('#fieldLabel').value.trim() || STEP_TYPES[step.type].label;
-      step.target = $('#fieldTarget').value;
-      step.x = Number($('#fieldX').value) || 0;
-      step.y = Number($('#fieldY').value) || 0;
-      step.delay = Math.max(0, Number($('#fieldDelay').value) || 0);
-      step.notes = $('#fieldNotes').value;
-      touchMacro();
-      renderSteps();
-      renderInspector();
-      toast('Step updated');
-    }
+      const uid = () => Math.random().toString(36).slice(2, 9);
+      const clone = (v) => JSON.parse(JSON.stringify(v));
+      const $ = (s) => document.querySelector(s);
+      const $$ = (s) => Array.prototype.slice.call(document.querySelectorAll(s));
 
-    function removeSelectedStep() {
-      const m = selectedMacro();
-      if (!m || !state.selectedStepId) return;
-      m.steps = m.steps.filter(s => s.id !== state.selectedStepId);
-      state.selectedStepId = null;
-      touchMacro();
-      renderAll();
-      toast('Step removed');
-    }
-
-    function newMacro() {
-      const m = {
-        id: uid(),
-        name: `Untitled Macro ${state.macros.length + 1}`,
-        favorite: false,
-        hotkey: '⌘⇧' + String.fromCharCode(65 + (state.macros.length % 26)),
-        runMode: 'once',
-        updatedAt: Date.now(),
-        steps: []
-      };
-      state.macros.unshift(m);
-      state.selectedMacroId = m.id;
-      state.selectedStepId = null;
-      renderAll();
-      toast('New macro created');
-      $('#macroName').focus();
-      $('#macroName').select();
-    }
-
-    function duplicateMacro() {
-      const m = selectedMacro();
-      if (!m) return;
-      const copy = clone(m);
-      copy.id = uid();
-      copy.name = m.name + ' Copy';
-      copy.favorite = false;
-      copy.updatedAt = Date.now();
-      copy.steps = copy.steps.map(s => ({ ...s, id: uid() }));
-      state.macros.unshift(copy);
-      state.selectedMacroId = copy.id;
-      state.selectedStepId = null;
-      renderAll();
-      toast('Macro duplicated');
-    }
-
-    function deleteMacro() {
-      if (state.macros.length <= 1) {
-        toast('Keep at least one macro');
-        return;
-      }
-      const m = selectedMacro();
-      if (!m) return;
-      if (!confirm(`Delete “${m.name}”?`)) return;
-      state.macros = state.macros.filter(x => x.id !== m.id);
-      state.selectedMacroId = state.macros[0].id;
-      state.selectedStepId = null;
-      stopPlayback();
-      renderAll();
-      toast('Macro deleted');
-    }
-
-    function toggleFavorite() {
-      const m = selectedMacro();
-      if (!m) return;
-      m.favorite = !m.favorite;
-      touchMacro();
-      renderAll();
-    }
-
-    function toggleRecord() {
-      if (state.playing) stopPlayback();
-      state.recording = !state.recording;
-      renderBadges();
-      if (state.recording) {
-        setStatus('<i class="fa-solid fa-circle text-desk-danger mr-1"></i>Recording — click in the window to capture');
-        toast('Recording started');
-      } else {
-        setStatus('<i class="fa-solid fa-circle-check text-desk-success mr-1"></i>Ready');
-        toast('Recording stopped');
-      }
-    }
-
-    function captureClickAsStep(e) {
-      if (!state.recording) return;
-      const win = $('#appWindow');
-      if (!win.contains(e.target)) return;
-      if (e.target.closest('button, input, select, textarea, a, .macro-item, .step-item')) return;
-      const rect = win.getBoundingClientRect();
-      const x = Math.round(e.clientX - rect.left);
-      const y = Math.round(e.clientY - rect.top);
-      const m = selectedMacro();
-      if (!m) return;
-      const step = {
-        id: uid(),
-        type: 'click',
-        label: `Click at ${x},${y}`,
-        target: '',
-        x, y,
-        delay: 200,
-        notes: 'Captured while recording'
-      };
-      m.steps.push(step);
-      state.selectedStepId = step.id;
-      touchMacro();
-      renderAll();
-      setStatus(`<i class="fa-solid fa-circle text-desk-danger mr-1"></i>Captured click (${x}, ${y})`);
-    }
-
-    function stopPlayback() {
-      state.playing = false;
-      state.playIndex = 0;
-      clearTimeout(state.playTimer);
-      state.playTimer = null;
-      renderBadges();
-      renderSteps();
-      setStatus('<i class="fa-solid fa-circle-check text-desk-success mr-1"></i>Ready');
-    }
-
-    function playMacro() {
-      const m = selectedMacro();
-      if (!m || !m.steps.length) {
-        toast('No steps to play');
-        return;
-      }
-      if (state.recording) toggleRecord();
-      state.playing = true;
-      state.playIndex = 0;
-      renderBadges();
-      setStatus('<i class="fa-solid fa-play text-desk-success mr-1"></i>Playing macro…');
-      runNextStep();
-    }
-
-    function runNextStep() {
-      const m = selectedMacro();
-      if (!state.playing || !m) return stopPlayback();
-      if (state.playIndex >= m.steps.length) {
-        if (m.runMode === 'loop') {
-          state.playIndex = 0;
-        } else {
-          toast('Playback finished');
-          return stopPlayback();
+      const seedMacros = [
+        {
+          id: 'm1', name: 'Morning Startup', favorite: true, hotkey: '⌘⇧M', runMode: 'once',
+          updatedAt: Date.now() - 1200000,
+          steps: [
+            { id: 's1', type: 'open', label: 'Open browser', target: 'https://mail.example.com', x: 0, y: 0, delay: 800, notes: '' },
+            { id: 's2', type: 'wait', label: 'Wait for load', target: '', x: 0, y: 0, delay: 1500, notes: '' },
+            { id: 's3', type: 'click', label: 'Compose button', target: '#compose', x: 1180, y: 84, delay: 300, notes: '' },
+            { id: 's4', type: 'type', label: 'Daily standup note', target: 'Standup ready', x: 0, y: 0, delay: 200, notes: '' },
+            { id: 's5', type: 'hotkey', label: 'Save draft', target: '⌘⇧D', x: 0, y: 0, delay: 100, notes: '' }
+          ]
+        },
+        {
+          id: 'm2', name: 'Screenshot & Annotate', favorite: false, hotkey: '⌘⇧S', runMode: 'hotkey',
+          updatedAt: Date.now() - 18000000,
+          steps: [
+            { id: 's1', type: 'hotkey', label: 'Capture region', target: '⌘⇧4', x: 0, y: 0, delay: 200, notes: '' },
+            { id: 's2', type: 'wait', label: 'Select area', target: '', x: 0, y: 0, delay: 2500, notes: '' },
+            { id: 's3', type: 'open', label: 'Open Preview', target: 'Preview.app', x: 0, y: 0, delay: 600, notes: '' }
+          ]
+        },
+        {
+          id: 'm3', name: 'Form Autofill Demo', favorite: true, hotkey: '⌘⌥F', runMode: 'once',
+          updatedAt: Date.now() - 90000000,
+          steps: [
+            { id: 's1', type: 'click', label: 'Focus name field', target: 'input[name=name]', x: 420, y: 310, delay: 150, notes: '' },
+            { id: 's2', type: 'type', label: 'Enter name', target: 'Alex Rivera', x: 0, y: 0, delay: 100, notes: '' },
+            { id: 's3', type: 'click', label: 'Submit', target: 'button[type=submit]', x: 480, y: 720, delay: 100, notes: '' }
+          ]
         }
+      ];
+
+      const state = {
+        macros: clone(seedMacros),
+        selectedMacroId: 'm1',
+        selectedStepId: null,
+        filter: 'all',
+        recording: false,
+        playing: false,
+        playTimer: null,
+        playIndex: 0,
+        speed: 1,
+        sortAsc: true
+      };
+
+      function selectedMacro() {
+        for (var i = 0; i < state.macros.length; i++) if (state.macros[i].id === state.selectedMacroId) return state.macros[i];
+        return null;
       }
-      const step = m.steps[state.playIndex];
-      state.selectedStepId = step.id;
-      renderSteps();
-      renderInspector();
-      setStatus(`<i class="fa-solid fa-play text-desk-success mr-1"></i>Step ${state.playIndex + 1}: ${escapeHtml(step.label)}`);
-      const wait = Math.max(80, (step.delay || 200) / state.speed);
-      state.playTimer = setTimeout(() => {
-        state.playIndex += 1;
-        runNextStep();
-      }, wait);
-    }
+      function selectedStep() {
+        var m = selectedMacro(); if (!m) return null;
+        for (var i = 0; i < m.steps.length; i++) if (m.steps[i].id === state.selectedStepId) return m.steps[i];
+        return null;
+      }
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      function toast(msg) {
+        $('#toastMsg').textContent = msg;
+        $('#toast').classList.add('show');
+        clearTimeout(toast._t);
+        toast._t = setTimeout(function () { $('#toast').classList.remove('show'); }, 2000);
+      }
+      function setStatus(html) { $('#statusText').innerHTML = html; }
+      function formatRelative(ts) {
+        var mins = Math.round((Date.now() - ts) / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        var hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        return Math.round(hrs / 24) + 'd ago';
+      }
+      function touchMacro() {
+        var m = selectedMacro();
+        if (m) m.updatedAt = Date.now();
+      }
 
-    function stepOnce() {
-      const m = selectedMacro();
-      if (!m || !m.steps.length) return;
-      if (!state.selectedStepId) state.selectedStepId = m.steps[0].id;
-      const i = m.steps.findIndex(s => s.id === state.selectedStepId);
-      const next = m.steps[Math.min(i + 1, m.steps.length - 1)];
-      state.selectedStepId = next.id;
-      renderSteps();
-      renderInspector();
-      setStatus(`<i class="fa-solid fa-forward-step text-desk-accent mr-1"></i>Stepped to “${escapeHtml(next.label)}”`);
-    }
-
-    function exportMacro() {
-      const m = selectedMacro();
-      if (!m) return;
-      const blob = new Blob([JSON.stringify(m, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = m.name.replace(/\s+/g, '-').toLowerCase() + '.macro.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast('Exported JSON');
-    }
-
-    function updateClocks() {
-      const now = new Date();
-      const opts = { hour: 'numeric', minute: '2-digit' };
-      const t = now.toLocaleTimeString([], opts);
-      $('#clock').textContent = now.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-      $('#taskbarClock').textContent = t;
-    }
-
-    // Wire UI
-    $('#btnNew').addEventListener('click', newMacro);
-    $('#btnDuplicate').addEventListener('click', duplicateMacro);
-    $('#btnDelete').addEventListener('click', deleteMacro);
-    $('#btnRecord').addEventListener('click', toggleRecord);
-    $('#btnPlay').addEventListener('click', playMacro);
-    $('#btnStop').addEventListener('click', () => {
-      if (state.recording) toggleRecord();
-      stopPlayback();
-      toast('Stopped');
-    });
-    $('#btnStep').addEventListener('click', stepOnce);
-    $('#btnAddStep').addEventListener('click', openAddStepModal);
-    $('#btnExport').addEventListener('click', exportMacro);
-    $('#btnFavorite').addEventListener('click', toggleFavorite);
-    $('#btnApplyStep').addEventListener('click', applyStepEdits);
-    $('#btnRemoveStep').addEventListener('click', removeSelectedStep);
-    $('#modalClose').addEventListener('click', closeModal);
-    $('#modalBackdrop').addEventListener('click', (e) => { if (e.target === $('#modalBackdrop')) closeModal(); });
-    $('#themeHint').addEventListener('click', () => toast('Settings panel coming soon'));
-
-    $('#macroName').addEventListener('change', () => {
-      const m = selectedMacro();
-      if (!m) return;
-      m.name = $('#macroName').value.trim() || 'Untitled Macro';
-      touchMacro();
-      renderMacroList();
-    });
-
-    $('#runMode').addEventListener('change', () => {
-      const m = selectedMacro();
-      if (!m) return;
-      m.runMode = $('#runMode').value;
-      touchMacro();
-    });
-
-    $('#speedRange').addEventListener('input', (e) => {
-      state.speed = Number(e.target.value);
-      $('#speedLabel').textContent = state.speed + '×';
-    });
-
-    $('#globalSearch').addEventListener('input', renderMacroList);
-
-    $$('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.filter = btn.dataset.filter;
-        $$('.filter-btn').forEach(b => {
-          const on = b.dataset.filter === state.filter;
-          b.classList.toggle('bg-desk-accent/20', on);
-          b.classList.toggle('text-desk-accent', on);
-          b.classList.toggle('font-medium', on);
-          b.classList.toggle('text-desk-400', !on);
+      function filteredMacros() {
+        var list = state.macros.slice();
+        if (state.filter === 'favorites') list = list.filter(function (m) { return m.favorite; });
+        if (state.filter === 'recent') list = list.sort(function (a, b) { return b.updatedAt - a.updatedAt; }).slice(0, 5);
+        else list = list.sort(function (a, b) {
+          return state.sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
         });
+        var q = (($('#globalSearch').value || '') + '').trim().toLowerCase();
+        if (q) list = list.filter(function (m) {
+          return m.name.toLowerCase().indexOf(q) !== -1 ||
+            m.steps.some(function (s) { return (s.label + s.target).toLowerCase().indexOf(q) !== -1; });
+        });
+        return list;
+      }
+
+      function stepSummary(step) {
+        if (step.type === 'click') return 'Click (' + step.x + ', ' + step.y + ') ' + (step.target || '');
+        if (step.type === 'type') return '"' + step.target + '"';
+        if (step.type === 'hotkey') return step.target || 'hotkey';
+        if (step.type === 'wait') return step.delay + ' ms';
+        if (step.type === 'move') return 'Move to (' + step.x + ', ' + step.y + ')';
+        return step.target || STEP_TYPES[step.type].label;
+      }
+
+      function renderMacroList() {
+        var list = filteredMacros();
+        $('#macroList').innerHTML = list.map(function (m) {
+          return '<button class="macro-item' + (m.id === state.selectedMacroId ? ' active' : '') + '" data-id="' + m.id + '">' +
+            '<div class="row" style="align-items:flex-start">' +
+            '<span class="thumb"><i class="fa-solid fa-film"></i></span>' +
+            '<div style="min-width:0;flex:1">' +
+            '<div class="name">' + escapeHtml(m.name) + (m.favorite ? ' ★' : '') + '</div>' +
+            '<div class="meta">' + m.steps.length + ' steps · ' + formatRelative(m.updatedAt) + '</div>' +
+            '</div></div></button>';
+        }).join('') || '<div class="empty">No macros found</div>';
+        $('#macroCount').textContent = state.macros.length + ' macro' + (state.macros.length === 1 ? '' : 's');
+        $$('.macro-item').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            state.selectedMacroId = btn.getAttribute('data-id');
+            state.selectedStepId = null;
+            renderAll();
+          });
+        });
+      }
+
+      function renderSteps() {
+        var m = selectedMacro();
+        var list = $('#stepList');
+        if (!m) { list.innerHTML = '<div class="empty">Select a macro</div>'; return; }
+        $('#macroName').value = m.name;
+        $('#macroMeta').textContent = m.steps.length + ' actions · edited ' + formatRelative(m.updatedAt) + ' · ' + m.hotkey;
+        $('#hotkeyBadge').textContent = m.hotkey;
+        $('#runMode').value = m.runMode;
+        $('#stepCount').textContent = m.steps.length + ' step' + (m.steps.length === 1 ? '' : 's');
+        $('#btnFavorite i').className = m.favorite ? 'fa-solid fa-star' : 'fa-regular fa-star';
+        $('#btnFavorite i').style.color = m.favorite ? 'var(--warn)' : '';
+
+        if (!m.steps.length) {
+          list.innerHTML = '<div class="empty"><div>No steps yet</div><button type="button" id="emptyAddStep">Add first step</button></div>';
+          var emptyBtn = $('#emptyAddStep');
+          if (emptyBtn) emptyBtn.addEventListener('click', openAddStepModal);
+          return;
+        }
+
+        list.innerHTML = m.steps.map(function (step, i) {
+          var meta = STEP_TYPES[step.type] || STEP_TYPES.click;
+          var active = step.id === state.selectedStepId ? ' active' : '';
+          return '<div class="step-item' + active + '" data-id="' + step.id + '">' +
+            '<span class="step-num">' + (i + 1) + '</span>' +
+            '<div style="min-width:0;flex:1">' +
+            '<div class="row" style="justify-content:space-between">' +
+            '<span class="step-title"><i class="fa-solid ' + meta.icon + '"></i> ' + escapeHtml(step.label || meta.label) + '</span>' +
+            '<span class="meta">' + step.delay + 'ms</span></div>' +
+            '<div class="meta">' + escapeHtml(stepSummary(step)) + '</div>' +
+            '</div></div>';
+        }).join('');
+
+        $$('.step-item').forEach(function (el) {
+          el.addEventListener('click', function () {
+            state.selectedStepId = el.getAttribute('data-id');
+            renderInspector();
+            $$('.step-item').forEach(function (s) {
+              s.classList.toggle('active', s.getAttribute('data-id') === state.selectedStepId);
+            });
+          });
+        });
+      }
+
+      function renderInspector() {
+        var step = selectedStep();
+        if (!step) {
+          $('#inspectorForm').classList.remove('show');
+          $('#inspectorEmpty').style.display = 'flex';
+          return;
+        }
+        $('#inspectorEmpty').style.display = 'none';
+        $('#inspectorForm').classList.add('show');
+        $('#fieldType').value = step.type;
+        $('#fieldLabel').value = step.label || '';
+        $('#fieldTarget').value = step.target || '';
+        $('#fieldX').value = step.x || 0;
+        $('#fieldY').value = step.y || 0;
+        $('#fieldDelay').value = step.delay || 0;
+        $('#fieldNotes').value = step.notes || '';
+      }
+
+      function renderBadges() {
+        $('#recBadge').classList.toggle('show', state.recording);
+        $('#playBadge').classList.toggle('show', state.playing);
+      }
+
+      function renderAll() {
         renderMacroList();
+        renderSteps();
+        renderInspector();
+        renderBadges();
+      }
+
+      function openAddStepModal() {
+        $('#stepTypeGrid').innerHTML = Object.keys(STEP_TYPES).map(function (type) {
+          var meta = STEP_TYPES[type];
+          return '<button type="button" data-type="' + type + '"><i class="fa-solid ' + meta.icon + '" style="color:var(--accent)"></i><span>' + meta.label + '</span></button>';
+        }).join('');
+        $$('#stepTypeGrid button').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            addStep(btn.getAttribute('data-type'));
+            closeModal();
+          });
+        });
+        $('#modalBackdrop').classList.add('show');
+      }
+      function closeModal() { $('#modalBackdrop').classList.remove('show'); }
+
+      function addStep(type) {
+        var m = selectedMacro(); if (!m) return;
+        var meta = STEP_TYPES[type];
+        var step = {
+          id: uid(), type: type, label: meta.label,
+          target: type === 'type' ? 'Hello from Macro Studio' : type === 'hotkey' ? '⌘S' : type === 'open' ? 'https://example.com' : type === 'scroll' ? 'down:200' : '',
+          x: (type === 'click' || type === 'move') ? 640 : 0,
+          y: (type === 'click' || type === 'move') ? 360 : 0,
+          delay: type === 'wait' ? 1000 : 200, notes: ''
+        };
+        m.steps.push(step);
+        state.selectedStepId = step.id;
+        touchMacro();
+        renderAll();
+        toast('Step added');
+      }
+
+      function applyStepEdits() {
+        var step = selectedStep(); if (!step) return;
+        step.type = $('#fieldType').value;
+        step.label = ($('#fieldLabel').value || '').trim() || STEP_TYPES[step.type].label;
+        step.target = $('#fieldTarget').value;
+        step.x = Number($('#fieldX').value) || 0;
+        step.y = Number($('#fieldY').value) || 0;
+        step.delay = Math.max(0, Number($('#fieldDelay').value) || 0);
+        step.notes = $('#fieldNotes').value;
+        touchMacro();
+        renderSteps();
+        renderInspector();
+        toast('Step updated');
+      }
+
+      function removeSelectedStep() {
+        var m = selectedMacro(); if (!m || !state.selectedStepId) return;
+        m.steps = m.steps.filter(function (s) { return s.id !== state.selectedStepId; });
+        state.selectedStepId = null;
+        touchMacro();
+        renderAll();
+        toast('Step removed');
+      }
+
+      function newMacro() {
+        var m = {
+          id: uid(),
+          name: 'Untitled Macro ' + (state.macros.length + 1),
+          favorite: false,
+          hotkey: '⌘⇧' + String.fromCharCode(65 + (state.macros.length % 26)),
+          runMode: 'once',
+          updatedAt: Date.now(),
+          steps: []
+        };
+        state.macros.unshift(m);
+        state.selectedMacroId = m.id;
+        state.selectedStepId = null;
+        renderAll();
+        toast('New macro created');
+      }
+
+      function duplicateMacro() {
+        var m = selectedMacro(); if (!m) return;
+        var copy = clone(m);
+        copy.id = uid();
+        copy.name = m.name + ' Copy';
+        copy.favorite = false;
+        copy.updatedAt = Date.now();
+        copy.steps = copy.steps.map(function (s) { s = clone(s); s.id = uid(); return s; });
+        state.macros.unshift(copy);
+        state.selectedMacroId = copy.id;
+        state.selectedStepId = null;
+        renderAll();
+        toast('Macro duplicated');
+      }
+
+      function deleteMacro() {
+        if (state.macros.length <= 1) { toast('Keep at least one macro'); return; }
+        var m = selectedMacro(); if (!m) return;
+        if (!confirm('Delete “‘ + m.name + '”?')) return;
+        state.macros = state.macros.filter(function (x) { return x.id !== m.id; });
+        state.selectedMacroId = state.macros[0].id;
+        state.selectedStepId = null;
+        stopPlayback();
+        renderAll();
+        toast('Macro deleted');
+      }
+
+      function toggleFavorite() {
+        var m = selectedMacro(); if (!m) return;
+        m.favorite = !m.favorite;
+        touchMacro();
+        renderAll();
+      }
+
+      function toggleRecord() {
+        if (state.playing) stopPlayback();
+        state.recording = !state.recording;
+        renderBadges();
+        setStatus(state.recording
+          ? '<i class="fa-solid fa-circle" style="color:var(--danger)"></i> Recording'
+          : '<i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Ready');
+        toast(state.recording ? 'Recording started' : 'Recording stopped');
+      }
+
+      function stopPlayback() {
+        state.playing = false;
+        state.playIndex = 0;
+        clearTimeout(state.playTimer);
+        state.playTimer = null;
+        renderBadges();
+        renderSteps();
+        setStatus('<i class="fa-solid fa-circle-check" style="color:var(--success)"></i> Ready');
+      }
+
+      function playMacro() {
+        var m = selectedMacro();
+        if (!m || !m.steps.length) { toast('No steps to play'); return; }
+        if (state.recording) toggleRecord();
+        state.playing = true;
+        state.playIndex = 0;
+        renderBadges();
+        runNextStep();
+      }
+
+      function runNextStep() {
+        var m = selectedMacro();
+        if (!state.playing || !m) return stopPlayback();
+        if (state.playIndex >= m.steps.length) {
+          if (m.runMode === 'loop') state.playIndex = 0;
+          else { toast('Playback finished'); return stopPlayback(); }
+        }
+        var step = m.steps[state.playIndex];
+        state.selectedStepId = step.id;
+        renderSteps();
+        renderInspector();
+        setStatus('<i class="fa-solid fa-play" style="color:var(--success)"></i> Step ' + (state.playIndex + 1) + ': ' + escapeHtml(step.label));
+        var wait = Math.max(80, (step.delay || 200) / state.speed);
+        state.playTimer = setTimeout(function () {
+          state.playIndex += 1;
+          runNextStep();
+        }, wait);
+      }
+
+      function exportMacro() {
+        var m = selectedMacro(); if (!m) return;
+        var blob = new Blob([JSON.stringify(m, null, 2)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = m.name.replace(/\s+/g, '-').toLowerCase() + '.macro.json';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast('Exported JSON');
+      }
+
+      function updateClocks() {
+        var now = new Date();
+        $('#clock').textContent = now.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        $('#taskbarClock').textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      }
+
+      function captureClickAsStep(e) {
+        if (!state.recording) return;
+        var win = $('#appWindow');
+        if (!win.contains(e.target)) return;
+        if (e.target.closest('button, input, select, textarea, a, .macro-item, .step-item')) return;
+        var rect = win.getBoundingClientRect();
+        var x = Math.round(e.clientX - rect.left);
+        var y = Math.round(e.clientY - rect.top);
+        var m = selectedMacro(); if (!m) return;
+        m.steps.push({
+          id: uid(), type: 'click', label: 'Click at ' + x + ',' + y,
+          target: '', x: x, y: y, delay: 200, notes: 'Captured while recording'
+        });
+        state.selectedStepId = m.steps[m.steps.length - 1].id;
+        touchMacro();
+        renderAll();
+      }
+
+      $('#btnNew').onclick = newMacro;
+      $('#btnDuplicate').onclick = duplicateMacro;
+      $('#btnDelete').onclick = deleteMacro;
+      $('#btnRecord').onclick = toggleRecord;
+      $('#btnPlay').onclick = playMacro;
+      $('#btnStop').onclick = function () {
+        if (state.recording) toggleRecord();
+        stopPlayback();
+        toast('Stopped');
+      };
+      $('#btnAddStep').onclick = openAddStepModal;
+      $('#btnExport').onclick = exportMacro;
+      $('#btnFavorite').onclick = toggleFavorite;
+      $('#btnApplyStep').onclick = applyStepEdits;
+      $('#btnRemoveStep').onclick = removeSelectedStep;
+      $('#modalClose').onclick = closeModal;
+      $('#modalBackdrop').onclick = function (e) { if (e.target === $('#modalBackdrop')) closeModal(); };
+      $('#themeHint').onclick = function () { toast('Settings coming soon'); };
+      $('#macroName').onchange = function () {
+        var m = selectedMacro(); if (!m) return;
+        m.name = ($('#macroName').value || '').trim() || 'Untitled Macro';
+        touchMacro();
+        renderMacroList();
+      };
+      $('#runMode').onchange = function () {
+        var m = selectedMacro(); if (!m) return;
+        m.runMode = $('#runMode').value;
+        touchMacro();
+      };
+      $('#speedRange').oninput = function (e) {
+        state.speed = Number(e.target.value);
+        $('#speedLabel').textContent = state.speed + '×';
+      };
+      $('#globalSearch').oninput = renderMacroList;
+      $$('.filter-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          state.filter = btn.getAttribute('data-filter');
+          $$('.filter-btn').forEach(function (b) {
+            b.classList.toggle('active', b.getAttribute('data-filter') === state.filter);
+          });
+          renderMacroList();
+        };
       });
-    });
+      $('#btnSort').onclick = function () {
+        state.sortAsc = !state.sortAsc;
+        renderMacroList();
+        toast(state.sortAsc ? 'Sorted A→Z' : 'Sorted Z→A');
+      };
+      document.addEventListener('click', captureClickAsStep);
+      document.addEventListener('mousemove', function (e) {
+        var win = $('#appWindow');
+        var rect = win.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          $('#coordsHint').textContent = 'x: ' + Math.round(e.clientX - rect.left) + ', y: ' + Math.round(e.clientY - rect.top);
+        }
+      });
 
-    $('#btnSort').addEventListener('click', () => {
-      state.sortAsc = !state.sortAsc;
-      renderMacroList();
-      toast(state.sortAsc ? 'Sorted A→Z' : 'Sorted Z→A');
-    });
-
-    document.addEventListener('click', captureClickAsStep);
-
-    document.addEventListener('mousemove', (e) => {
-      const win = $('#appWindow');
-      const rect = win.getBoundingClientRect();
-      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
-        const x = Math.round(e.clientX - rect.left);
-        const y = Math.round(e.clientY - rect.top);
-        $('#coordsHint').innerHTML = `<i class="fa-solid fa-crosshairs mr-1"></i>x: ${x}, y: ${y}`;
+      try {
+        updateClocks();
+        setInterval(updateClocks, 15000);
+        renderAll();
+        var m = selectedMacro();
+        state.selectedStepId = m && m.steps[0] ? m.steps[0].id : null;
+        renderInspector();
+        $$('.step-item').forEach(function (s) {
+          s.classList.toggle('active', s.getAttribute('data-id') === state.selectedStepId);
+        });
+      } catch (err) {
+        var box = $('#bootError');
+        box.style.display = 'block';
+        box.textContent = 'Macro Studio failed to start:\n\n' + (err && err.stack ? err.stack : String(err));
       }
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        $('#globalSearch').focus();
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        newMacro();
-      }
-      if (e.key === 'Escape') closeModal();
-    });
-
-    try {
-      updateClocks();
-      setInterval(updateClocks, 15000);
-      renderAll();
-      state.selectedStepId = selectedMacro()?.steps[0]?.id || null;
-      renderInspector();
-      $$('.step-item').forEach(s => s.classList.toggle('active', s.dataset.id === state.selectedStepId));
-    } catch (err) {
-      const box = document.getElementById('bootError');
-      box.style.display = 'block';
-      box.textContent = 'Macro Studio failed to start:\n\n' + (err && err.stack ? err.stack : String(err));
-      console.error(err);
-    }
+    })();
   </script>
 </body>
 </html>
