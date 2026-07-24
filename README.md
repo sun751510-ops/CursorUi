@@ -4,10 +4,10 @@ Desktop Jarvis assistant with a polished webview UI, prebuilt OS commands, and a
 
 ## Mobile UI demo (phone)
 
-After this branch is pushed, open one of these on your phone:
+**Open on your phone now:**  
+https://litter.catbox.moe/3zg2ny.html
 
-**Branch preview (works before merge):**  
-https://raw.githack.com/sun751510-ops/CursorUi/cursor/cwayclient-jarvis-2fc8/web/index.html
+Self-contained copy also lives at [`web/phone.html`](web/phone.html).
 
 **GitHub Pages (after merge + Pages enabled):**  
 https://sun751510-ops.github.io/CursorUi/
