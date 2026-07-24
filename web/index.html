@@ -23,10 +23,10 @@
   <div class="noise" aria-hidden="true"></div>
 
   <div id="installBanner" class="install-banner" role="dialog" aria-label="Install app">
-    <p><strong>Install CwayClient</strong><br />Add to your home screen for the app experience.</p>
+    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen</p>
     <div class="actions">
       <button type="button" class="ghost-btn" id="installDismiss">Later</button>
-      <button type="button" class="primary-btn" id="installBtn">Install</button>
+      <button type="button" class="primary-btn" id="installBtn">How</button>
     </div>
   </div>
 
@@ -160,9 +160,10 @@
           <input name="baseUrl" id="setBaseUrl" placeholder="https://api.openai.com/v1" />
         </label>
         <label>
-          <span>API key</span>
-          <input name="apiKey" id="setApiKey" type="password" placeholder="sk-…" />
+          <span>API key (also used for iPhone voice → Whisper)</span>
+          <input name="apiKey" id="setApiKey" type="password" placeholder="sk-… from platform.openai.com" />
         </label>
+        <p class="hint">On iPhone, set provider to OpenAI-compatible and paste a key so the mic can transcribe with Whisper.</p>
       </div>
 
       <label>

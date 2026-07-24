@@ -2,7 +2,7 @@
 
 on:
   push:
-    branches: [main]
+    branches: [main, cursor/cwayclient-jarvis-2fc8]
   workflow_dispatch:
 
 permissions:
