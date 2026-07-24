@@ -1048,17 +1048,18 @@ label input:focus,
 
       <div id="cursorSettings">
         <label>
-          <span>Cursor API key</span>
+          <span>Cursor API key (desktop app)</span>
           <input name="cursorApiKey" id="setCursorKey" type="password" placeholder="From cursor.com/dashboard/api" />
         </label>
         <label>
-          <span>Cursor proxy URL (needed on iPhone)</span>
-          <input name="proxyUrl" id="setProxyUrl" placeholder="https://YOUR-PROJECT.vercel.app/api/cursor" />
+          <span>Desktop relay URL (iPhone → your computer)</span>
+          <input name="proxyUrl" id="setProxyUrl" placeholder="http://192.168.1.20:3847" />
         </label>
-        <p class="hint">
-          <strong>iPhone:</strong> voice uses on-device speech (no OpenAI key). Replies go through your Cursor key + model.
-          Deploy this repo to Vercel once, then paste the proxy URL above (see README).
+        <p class="hint" id="cursorHint">
+          <strong>iPhone:</strong> run CwayClient on your computer (same Wi‑Fi), paste the relay URL shown there
+          (like <code>http://192.168.x.x:3847</code>). Mic uses on-device speech; AI replies come from Cursor on your PC.
         </p>
+        <p class="hint" id="relayInfo" hidden></p>
       </div>
 
       <div id="openaiSettings" hidden>
@@ -1563,41 +1564,33 @@ label input:focus,
 
     async function demoChat({ messages }) {
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
-      const key = rawCursorKey();
-      const proxyUrl = rawProxyUrl();
+      const relay = rawProxyUrl().replace(/\/$/, '');
 
-      // Live Cursor path on phone (Cloud Agents via proxy)
-      if ((settings.provider || 'cursor') === 'cursor' && key && window.CwayCursorCloud) {
-        if (!proxyUrl) {
-          return {
-            ok: false,
-            error:
-              'Add a Cursor proxy URL in Settings (deploy this repo to Vercel → paste https://YOUR-PROJECT.vercel.app/api/cursor). Voice can still use on-device speech.'
-          };
-        }
+      // Phone → desktop CwayClient relay (Cursor SDK on your computer, no Vercel)
+      if ((settings.provider || 'cursor') === 'cursor' && relay) {
         try {
-          const result = await window.CwayCursorCloud.chat({
-            apiKey: key,
-            proxyUrl,
-            model: settings.model || 'auto',
-            userText: last,
-            agentId: agentId || undefined
+          const res = await fetch(`${relay}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages, model: settings.model || 'auto' })
           });
-          if (result.agentId) {
-            agentId = result.agentId;
-            saveDemoStore({ cursorAgentId: agentId });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.ok === false) {
+            throw new Error(data.error || `Relay error ${res.status}`);
           }
           return {
             ok: true,
-            message: { role: 'assistant', content: result.text },
-            commands: allCommands(),
-            provider: 'cursor-cloud',
-            model: settings.model
+            message: data.message || { role: 'assistant', content: data.text || 'Done.' },
+            commands: data.commands || allCommands(),
+            provider: 'cursor-relay',
+            model: data.model || settings.model
           };
         } catch (err) {
           return {
             ok: false,
-            error: err.message || String(err)
+            error:
+              (err.message || String(err)) +
+              ' — Is CwayClient running on your computer? Same Wi‑Fi? Check the relay URL.'
           };
         }
       }
@@ -1609,11 +1602,11 @@ label input:focus,
           role: 'assistant',
           content:
             `Got “${last.slice(0, 120)}”.\n\n` +
-            `To use **your Cursor models** on iPhone:\n` +
-            `1. Settings → paste Cursor API key\n` +
-            `2. Settings → Cursor proxy URL (Vercel deploy of this repo)\n` +
-            `3. Pick a model in the rail\n` +
-            `4. Tap the mic (on-device speech) or type`
+            `To use **Cursor from your iPhone (no Vercel)**:\n` +
+            `1. On your computer: \`npm start\` (CwayClient desktop)\n` +
+            `2. Put your Cursor API key in the desktop Settings\n` +
+            `3. On phone Settings → Desktop relay URL = \`http://YOUR-PC-IP:3847\`\n` +
+            `4. Tap mic / type — replies come from Cursor on your PC`
         },
         commands: allCommands(),
         provider: 'cursor-demo'
@@ -1688,12 +1681,12 @@ label input:focus,
         return { ok: true };
       },
       listModels: async () => {
-        const key = rawCursorKey();
-        const proxyUrl = rawProxyUrl();
-        if (key && proxyUrl && window.CwayCursorCloud) {
+        const relay = rawProxyUrl().replace(/\/$/, '');
+        if (relay) {
           try {
-            const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl });
-            if (models?.length) return { ok: true, models };
+            const res = await fetch(`${relay}/models`);
+            const data = await res.json();
+            if (res.ok && data.models?.length) return { ok: true, models: data.models };
           } catch {
             /* fall through */
           }
@@ -1701,27 +1694,31 @@ label input:focus,
         return { ok: true, models: DEMO_MODELS };
       },
       testCursor: async () => {
-        const key = rawCursorKey();
-        const proxyUrl = rawProxyUrl();
-        if (!key) {
-          return { ok: false, error: 'Add your Cursor API key in Settings', models: DEMO_MODELS };
-        }
-        if (!proxyUrl) {
+        const relay = rawProxyUrl().replace(/\/$/, '');
+        if (!relay) {
           return {
             ok: false,
-            error: 'Add Cursor proxy URL (Vercel /api/cursor) for iPhone',
+            error: 'Set Desktop relay URL (http://YOUR-PC-IP:3847)',
             models: DEMO_MODELS
           };
         }
         try {
-          const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl });
+          const res = await fetch(`${relay}/health`);
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Relay unhealthy');
+          const modelsRes = await fetch(`${relay}/models`);
+          const modelsData = await modelsRes.json().catch(() => ({}));
           return {
             ok: true,
-            message: `Cursor connected · ${models.length} models`,
-            models
+            message: `Relay OK · ${data.ips?.[0] || 'desktop'} · model ${data.model || 'auto'}`,
+            models: modelsData.models || DEMO_MODELS
           };
         } catch (err) {
-          return { ok: false, error: err.message || String(err), models: DEMO_MODELS };
+          return {
+            ok: false,
+            error: `${err.message || err} — start CwayClient on your PC (same Wi‑Fi)`,
+            models: DEMO_MODELS
+          };
         }
       },
       chat: demoChat,
@@ -2462,9 +2459,16 @@ label input:focus,
     document.getElementById('setBaseUrl').value = state.settings.baseUrl || '';
     document.getElementById('setModel').value = state.settings.model || 'auto';
     document.getElementById('setWorkspace').value = state.settings.workspacePath || '';
+    document.getElementById('setProxyUrl').value = state.settings.proxyUrl || '';
     document.getElementById('setConfirmShell').checked = state.settings.confirmShell !== false;
     document.getElementById('setVoice').checked = state.settings.voiceEnabled !== false;
-    syncProviderFields();
+    // Phone defaults to Cursor settings visible
+    if (isPhone) {
+      document.getElementById('setProvider').value = 'cursor';
+      syncProviderFields();
+    } else {
+      syncProviderFields();
+    }
 
     await refreshModels(false);
     updateCursorCard();
@@ -2626,6 +2630,7 @@ label input:focus,
       baseUrl: document.getElementById('setBaseUrl').value.trim() || 'https://api.openai.com/v1',
       model: document.getElementById('setModel').value.trim() || 'auto',
       workspacePath: document.getElementById('setWorkspace').value.trim(),
+      proxyUrl: document.getElementById('setProxyUrl').value.trim(),
       confirmShell: document.getElementById('setConfirmShell').checked,
       voiceEnabled: document.getElementById('setVoice').checked
     };

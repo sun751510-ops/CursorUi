@@ -149,17 +149,18 @@
 
       <div id="cursorSettings">
         <label>
-          <span>Cursor API key</span>
+          <span>Cursor API key (desktop app)</span>
           <input name="cursorApiKey" id="setCursorKey" type="password" placeholder="From cursor.com/dashboard/api" />
         </label>
         <label>
-          <span>Cursor proxy URL (needed on iPhone)</span>
-          <input name="proxyUrl" id="setProxyUrl" placeholder="https://YOUR-PROJECT.vercel.app/api/cursor" />
+          <span>Desktop relay URL (iPhone → your computer)</span>
+          <input name="proxyUrl" id="setProxyUrl" placeholder="http://192.168.1.20:3847" />
         </label>
-        <p class="hint">
-          <strong>iPhone:</strong> voice uses on-device speech (no OpenAI key). Replies go through your Cursor key + model.
-          Deploy this repo to Vercel once, then paste the proxy URL above (see README).
+        <p class="hint" id="cursorHint">
+          <strong>iPhone:</strong> run CwayClient on your computer (same Wi‑Fi), paste the relay URL shown there
+          (like <code>http://192.168.x.x:3847</code>). Mic uses on-device speech; AI replies come from Cursor on your PC.
         </p>
+        <p class="hint" id="relayInfo" hidden></p>
       </div>
 
       <div id="openaiSettings" hidden>

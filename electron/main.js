@@ -6,6 +6,9 @@ const { execFile, spawn } = require('child_process');
 const Store = require('electron-store');
 const { runAiTurn } = require('./ai');
 const { CursorBridge, publicSettings } = require('./cursor-bridge');
+const { createRelayServer, DEFAULT_PORT } = require('./relay');
+
+let relayInfo = null;
 
 const store = new Store({
   name: 'cwayclient',
@@ -422,8 +425,17 @@ function registerIpc() {
     platform: process.platform,
     commands: getAllCommands(),
     settings: publicSettings(getSettings()),
-    history: store.get('chatHistory') || []
+    history: store.get('chatHistory') || [],
+    relay: relayInfo
+      ? { port: relayInfo.port, ips: relayInfo.ips, urls: relayInfo.urls }
+      : null
   }));
+
+  ipcMain.handle('cway:getRelay', () =>
+    relayInfo
+      ? { ok: true, port: relayInfo.port, ips: relayInfo.ips, urls: relayInfo.urls }
+      : { ok: false, error: 'Relay not running' }
+  );
 
   ipcMain.handle('cway:getCommands', () => getAllCommands());
 
@@ -533,8 +545,23 @@ function registerIpc() {
 
 app.setName('CwayClient');
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerIpc();
+  try {
+    relayInfo = await createRelayServer({
+      cursorBridge,
+      getSettings,
+      getAllCommands,
+      port: Number(process.env.CWAY_RELAY_PORT) || DEFAULT_PORT
+    });
+    console.log(
+      '[CwayClient] Phone relay on',
+      relayInfo.urls.join(', ') || `http://localhost:${relayInfo.port}`
+    );
+  } catch (err) {
+    console.error('[CwayClient] Relay failed to start:', err.message || err);
+    relayInfo = null;
+  }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -543,4 +570,12 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  try {
+    relayInfo?.server?.close?.();
+  } catch {
+    /* ignore */
+  }
 });

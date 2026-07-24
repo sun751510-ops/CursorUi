@@ -147,41 +147,33 @@
 
     async function demoChat({ messages }) {
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
-      const key = rawCursorKey();
-      const proxyUrl = rawProxyUrl();
+      const relay = rawProxyUrl().replace(/\/$/, '');
 
-      // Live Cursor path on phone (Cloud Agents via proxy)
-      if ((settings.provider || 'cursor') === 'cursor' && key && window.CwayCursorCloud) {
-        if (!proxyUrl) {
-          return {
-            ok: false,
-            error:
-              'Add a Cursor proxy URL in Settings (deploy this repo to Vercel → paste https://YOUR-PROJECT.vercel.app/api/cursor). Voice can still use on-device speech.'
-          };
-        }
+      // Phone → desktop CwayClient relay (Cursor SDK on your computer, no Vercel)
+      if ((settings.provider || 'cursor') === 'cursor' && relay) {
         try {
-          const result = await window.CwayCursorCloud.chat({
-            apiKey: key,
-            proxyUrl,
-            model: settings.model || 'auto',
-            userText: last,
-            agentId: agentId || undefined
+          const res = await fetch(`${relay}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages, model: settings.model || 'auto' })
           });
-          if (result.agentId) {
-            agentId = result.agentId;
-            saveDemoStore({ cursorAgentId: agentId });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || data.ok === false) {
+            throw new Error(data.error || `Relay error ${res.status}`);
           }
           return {
             ok: true,
-            message: { role: 'assistant', content: result.text },
-            commands: allCommands(),
-            provider: 'cursor-cloud',
-            model: settings.model
+            message: data.message || { role: 'assistant', content: data.text || 'Done.' },
+            commands: data.commands || allCommands(),
+            provider: 'cursor-relay',
+            model: data.model || settings.model
           };
         } catch (err) {
           return {
             ok: false,
-            error: err.message || String(err)
+            error:
+              (err.message || String(err)) +
+              ' — Is CwayClient running on your computer? Same Wi‑Fi? Check the relay URL.'
           };
         }
       }
@@ -193,11 +185,11 @@
           role: 'assistant',
           content:
             `Got “${last.slice(0, 120)}”.\n\n` +
-            `To use **your Cursor models** on iPhone:\n` +
-            `1. Settings → paste Cursor API key\n` +
-            `2. Settings → Cursor proxy URL (Vercel deploy of this repo)\n` +
-            `3. Pick a model in the rail\n` +
-            `4. Tap the mic (on-device speech) or type`
+            `To use **Cursor from your iPhone (no Vercel)**:\n` +
+            `1. On your computer: \`npm start\` (CwayClient desktop)\n` +
+            `2. Put your Cursor API key in the desktop Settings\n` +
+            `3. On phone Settings → Desktop relay URL = \`http://YOUR-PC-IP:3847\`\n` +
+            `4. Tap mic / type — replies come from Cursor on your PC`
         },
         commands: allCommands(),
         provider: 'cursor-demo'
@@ -272,12 +264,12 @@
         return { ok: true };
       },
       listModels: async () => {
-        const key = rawCursorKey();
-        const proxyUrl = rawProxyUrl();
-        if (key && proxyUrl && window.CwayCursorCloud) {
+        const relay = rawProxyUrl().replace(/\/$/, '');
+        if (relay) {
           try {
-            const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl });
-            if (models?.length) return { ok: true, models };
+            const res = await fetch(`${relay}/models`);
+            const data = await res.json();
+            if (res.ok && data.models?.length) return { ok: true, models: data.models };
           } catch {
             /* fall through */
           }
@@ -285,27 +277,31 @@
         return { ok: true, models: DEMO_MODELS };
       },
       testCursor: async () => {
-        const key = rawCursorKey();
-        const proxyUrl = rawProxyUrl();
-        if (!key) {
-          return { ok: false, error: 'Add your Cursor API key in Settings', models: DEMO_MODELS };
-        }
-        if (!proxyUrl) {
+        const relay = rawProxyUrl().replace(/\/$/, '');
+        if (!relay) {
           return {
             ok: false,
-            error: 'Add Cursor proxy URL (Vercel /api/cursor) for iPhone',
+            error: 'Set Desktop relay URL (http://YOUR-PC-IP:3847)',
             models: DEMO_MODELS
           };
         }
         try {
-          const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl });
+          const res = await fetch(`${relay}/health`);
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Relay unhealthy');
+          const modelsRes = await fetch(`${relay}/models`);
+          const modelsData = await modelsRes.json().catch(() => ({}));
           return {
             ok: true,
-            message: `Cursor connected · ${models.length} models`,
-            models
+            message: `Relay OK · ${data.ips?.[0] || 'desktop'} · model ${data.model || 'auto'}`,
+            models: modelsData.models || DEMO_MODELS
           };
         } catch (err) {
-          return { ok: false, error: err.message || String(err), models: DEMO_MODELS };
+          return {
+            ok: false,
+            error: `${err.message || err} — start CwayClient on your PC (same Wi‑Fi)`,
+            models: DEMO_MODELS
+          };
         }
       },
       chat: demoChat,
@@ -1059,6 +1055,17 @@
 
     await refreshModels(false);
     updateCursorCard();
+
+    // Desktop: show Wi‑Fi relay URL for the iPhone
+    const relayEl = document.getElementById('relayInfo');
+    if (relayEl && bootData.relay?.urls?.length) {
+      relayEl.hidden = false;
+      relayEl.innerHTML = `<strong>Phone relay (same Wi‑Fi):</strong> ${bootData.relay.urls
+        .map((u) => `<code>${u}</code>`)
+        .join(' · ')} — paste one into the iPhone app Settings.`;
+      els.cursorStatus.textContent = `Relay · ${bootData.relay.urls[0]}`;
+      els.cursorDot.classList.add('ok');
+    }
 
     // Phone: past chats were breaking the layout — start clean / keep history tiny
     let history = Array.isArray(bootData.history) ? bootData.history : [];
