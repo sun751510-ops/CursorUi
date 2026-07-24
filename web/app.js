@@ -124,6 +124,7 @@
       apiKey: store.apiKey || '',
       baseUrl: store.baseUrl || 'https://api.openai.com/v1',
       model: store.model || 'auto',
+      proxyUrl: store.proxyUrl || '',
       confirmShell: store.confirmShell !== false,
       voiceEnabled: store.voiceEnabled !== false,
       workspacePath: store.workspacePath || '',
@@ -131,54 +132,72 @@
       hasApiKey: Boolean(store.apiKey || store.cursorApiKey)
     };
     let history = store.history || [];
+    let agentId = store.cursorAgentId || '';
     const allCommands = () => [...DEMO_BUILTINS, ...custom];
 
+    function rawCursorKey() {
+      const s = loadDemoStore();
+      return s.cursorApiKey || '';
+    }
+
+    function rawProxyUrl() {
+      const s = loadDemoStore();
+      return s.proxyUrl || settings.proxyUrl || '';
+    }
+
     async function demoChat({ messages }) {
-      await sleep(500);
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
-      const lower = last.toLowerCase();
-      if (/create|add|new command|invent/.test(lower)) {
-        const entry = {
-          id: `demo_${Date.now().toString(36)}`,
-          name: 'Open Downloads (demo)',
-          description: 'Demo command invented by AI',
-          category: 'custom',
-          params: [],
-          path: '~/Downloads',
-          builtin: false
-        };
-        custom = [...custom, entry];
-        saveDemoStore({ customCommands: custom });
-        return {
-          ok: true,
-          message: {
-            role: 'assistant',
-            content:
-              `Created **${entry.name}**. On desktop (with your Cursor key) I invent and run real OS commands via Cursor models.`
-          },
-          trace: [{ tool: 'add_cway_command', args: entry, result: { ok: true } }],
-          commands: allCommands(),
-          provider: 'cursor-demo'
-        };
+      const key = rawCursorKey();
+      const proxyUrl = rawProxyUrl();
+
+      // Live Cursor path on phone (Cloud Agents via proxy)
+      if ((settings.provider || 'cursor') === 'cursor' && key && window.CwayCursorCloud) {
+        if (!proxyUrl) {
+          return {
+            ok: false,
+            error:
+              'Add a Cursor proxy URL in Settings (deploy this repo to Vercel → paste https://YOUR-PROJECT.vercel.app/api/cursor). Voice can still use on-device speech.'
+          };
+        }
+        try {
+          const result = await window.CwayCursorCloud.chat({
+            apiKey: key,
+            proxyUrl,
+            model: settings.model || 'auto',
+            userText: last,
+            agentId: agentId || undefined
+          });
+          if (result.agentId) {
+            agentId = result.agentId;
+            saveDemoStore({ cursorAgentId: agentId });
+          }
+          return {
+            ok: true,
+            message: { role: 'assistant', content: result.text },
+            commands: allCommands(),
+            provider: 'cursor-cloud',
+            model: settings.model
+          };
+        } catch (err) {
+          return {
+            ok: false,
+            error: err.message || String(err)
+          };
+        }
       }
-      if (/cursor|connect|model/.test(lower)) {
-        return {
-          ok: true,
-          message: {
-            role: 'assistant',
-            content:
-              'On desktop: open **Settings → paste your Cursor API key** from cursor.com/dashboard/api, then pick any model in the rail.\n\nThis phone page is UI-only — Cursor SDK runs inside the Electron app.'
-          },
-          commands: allCommands(),
-          provider: 'cursor-demo'
-        };
-      }
+
+      await sleep(400);
       return {
         ok: true,
         message: {
           role: 'assistant',
           content:
-            `Got it — “${last.slice(0, 140)}”\n\nPhone demo of the Dexter-style copilot UI. Desktop CwayClient talks to **your Cursor account** and any model you choose.`
+            `Got “${last.slice(0, 120)}”.\n\n` +
+            `To use **your Cursor models** on iPhone:\n` +
+            `1. Settings → paste Cursor API key\n` +
+            `2. Settings → Cursor proxy URL (Vercel deploy of this repo)\n` +
+            `3. Pick a model in the rail\n` +
+            `4. Tap the mic (on-device speech) or type`
         },
         commands: allCommands(),
         provider: 'cursor-demo'
@@ -194,7 +213,8 @@
         settings: {
           ...settings,
           cursorApiKey: settings.hasCursorKey ? '••••••••' : '',
-          apiKey: settings.apiKey ? '••••••••' : ''
+          apiKey: settings.apiKey ? '••••••••' : '',
+          proxyUrl: settings.proxyUrl || ''
         },
         history
       }),
@@ -220,12 +240,14 @@
         settings = { ...settings, ...partial };
         if (partial.clearCursorKey) settings.cursorApiKey = '';
         if (partial.clearApiKey) settings.apiKey = '';
+        const prev = loadDemoStore();
         saveDemoStore({
           provider: settings.provider,
-          cursorApiKey: settings.cursorApiKey === '••••••••' ? store.cursorApiKey : settings.cursorApiKey,
-          apiKey: settings.apiKey === '••••••••' ? store.apiKey : settings.apiKey,
+          cursorApiKey: settings.cursorApiKey === '••••••••' ? prev.cursorApiKey : settings.cursorApiKey,
+          apiKey: settings.apiKey === '••••••••' ? prev.apiKey : settings.apiKey,
           baseUrl: settings.baseUrl,
           model: settings.model,
+          proxyUrl: settings.proxyUrl,
           confirmShell: settings.confirmShell,
           voiceEnabled: settings.voiceEnabled,
           workspacePath: settings.workspacePath
@@ -233,12 +255,14 @@
         const saved = loadDemoStore();
         settings.hasCursorKey = Boolean(saved.cursorApiKey);
         settings.hasApiKey = Boolean(saved.apiKey || saved.cursorApiKey);
+        settings.proxyUrl = saved.proxyUrl || '';
         return {
           ok: true,
           settings: {
             ...settings,
             cursorApiKey: settings.hasCursorKey ? '••••••••' : '',
-            apiKey: saved.apiKey ? '••••••••' : ''
+            apiKey: saved.apiKey ? '••••••••' : '',
+            proxyUrl: settings.proxyUrl
           }
         };
       },
@@ -247,14 +271,43 @@
         saveDemoStore({ history });
         return { ok: true };
       },
-      listModels: async () => ({ ok: true, models: DEMO_MODELS }),
-      testCursor: async () => ({
-        ok: Boolean(settings.hasCursorKey),
-        message: settings.hasCursorKey
-          ? 'Demo: key saved locally (real Cursor test needs desktop app)'
-          : 'Add a Cursor API key in Settings (desktop for live connection)',
-        models: DEMO_MODELS
-      }),
+      listModels: async () => {
+        const key = rawCursorKey();
+        const proxyUrl = rawProxyUrl();
+        if (key && proxyUrl && window.CwayCursorCloud) {
+          try {
+            const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl });
+            if (models?.length) return { ok: true, models };
+          } catch {
+            /* fall through */
+          }
+        }
+        return { ok: true, models: DEMO_MODELS };
+      },
+      testCursor: async () => {
+        const key = rawCursorKey();
+        const proxyUrl = rawProxyUrl();
+        if (!key) {
+          return { ok: false, error: 'Add your Cursor API key in Settings', models: DEMO_MODELS };
+        }
+        if (!proxyUrl) {
+          return {
+            ok: false,
+            error: 'Add Cursor proxy URL (Vercel /api/cursor) for iPhone',
+            models: DEMO_MODELS
+          };
+        }
+        try {
+          const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl });
+          return {
+            ok: true,
+            message: `Cursor connected · ${models.length} models`,
+            models
+          };
+        } catch (err) {
+          return { ok: false, error: err.message || String(err), models: DEMO_MODELS };
+        }
+      },
       chat: demoChat,
       onStatus: () => () => {}
     };
@@ -701,120 +754,106 @@
       return (data.text || '').trim();
     }
 
-    // iPhone / Safari path: record audio, then Whisper (or ask user to type)
-    if (isIOS || !window.SpeechRecognition && !window.webkitSpeechRecognition) {
-      if (!canRecord) {
-        els.micBtn.classList.add('disabled');
-        els.micBtn.title = 'Open in Safari to use the mic';
-        els.micBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          setStatus('Open this page in Safari, then Add to Home Screen');
-        });
-        return;
-      }
+    // iPhone / Safari: prefer on-device Web Speech (no OpenAI Whisper key)
+    const SRPhone = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (isIOS || SRPhone) {
+      if (SRPhone) {
+        const rec = new SRPhone();
+        rec.continuous = false;
+        rec.interimResults = true;
+        rec.lang = navigator.language || 'en-US';
+        let finalText = '';
+        let hadResult = false;
+        let ignoreErrors = false;
 
-      let mediaStream = null;
-      let recorder = null;
-      let chunks = [];
-
-      async function stopRecordingAndSend() {
-        return new Promise((resolve) => {
-          if (!recorder || recorder.state === 'inactive') {
-            resolve(null);
+        rec.onstart = () => {
+          finalText = '';
+          hadResult = false;
+          setListeningUi(true);
+          setStatus('Listening… tap again when done');
+        };
+        rec.onresult = (e) => {
+          let interim = '';
+          for (let i = e.resultIndex; i < e.results.length; i += 1) {
+            const t = e.results[i][0].transcript;
+            if (e.results[i].isFinal) {
+              finalText += `${t} `;
+              hadResult = true;
+            } else interim += t;
+          }
+          els.prompt.value = (finalText || interim).trim();
+          autoGrow();
+        };
+        rec.onerror = (e) => {
+          const code = e?.error || '';
+          if (code === 'aborted' || code === 'no-speech' || ignoreErrors) {
+            setListeningUi(false);
+            if (!hadResult) idleStatus();
             return;
           }
-          recorder.onstop = async () => {
-            mediaStream?.getTracks?.().forEach((t) => t.stop());
-            mediaStream = null;
-            const mime = recorder.mimeType || pickMime() || 'audio/mp4';
-            const blob = new Blob(chunks, { type: mime });
-            chunks = [];
-            setListeningUi(false);
-            if (!blob.size) {
-              setStatus('No audio captured — try again');
-              resolve(null);
-              return;
-            }
-            setStatus('Transcribing…');
-            setOrb('thinking');
-            try {
-              const text = await transcribeBlob(blob);
-              if (text) {
-                els.prompt.value = text;
-                autoGrow();
-                handleSend(text);
-                resolve(text);
-                return;
-              }
-              setStatus('Mic works — add OpenAI key in Settings for voice-to-text');
-              appendMessage({
-                role: 'system',
-                content:
-                  'iPhone voice needs an **OpenAI API key** for Whisper (Settings → provider OpenAI-compatible → paste key). Or just type your message.'
-              });
-              idleStatus();
-              resolve(null);
-            } catch (err) {
-              setStatus(err.message || 'Transcribe failed');
-              appendMessage({
-                role: 'system',
-                content: `Voice capture worked, but transcription failed: ${err.message || err}. You can type instead.`
-              });
-              setOrb('idle');
-              resolve(null);
-            }
-          };
-          try {
-            recorder.stop();
-          } catch {
-            resolve(null);
-          }
-        });
-      }
-
-      async function toggleRecord(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (state.busy) return;
-
-        if (state.listening) {
-          await stopRecordingAndSend();
-          return;
-        }
-
-        try {
-          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          chunks = [];
-          const mime = pickMime();
-          recorder = mime ? new MediaRecorder(mediaStream, { mimeType: mime }) : new MediaRecorder(mediaStream);
-          recorder.ondataavailable = (ev) => {
-            if (ev.data?.size) chunks.push(ev.data);
-          };
-          recorder.start();
-          setListeningUi(true);
-          setStatus('Recording… tap again when done');
-        } catch (err) {
           setListeningUi(false);
-          const name = err?.name || '';
-          if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-            setStatus('Allow Microphone for Safari / CwayClient in iOS Settings');
+          // Fall through tip — still can type; Cursor replies need Cursor key + proxy
+          setStatus('Speech unavailable — type your message');
+          if (code === 'not-allowed' || code === 'service-not-allowed') {
             appendMessage({
               role: 'system',
               content:
-                'On iPhone: Settings → Safari (or CwayClient if on Home Screen) → Microphone → Allow. Open this page in **Safari**, not TikTok/Instagram browser.'
+                'Allow **Microphone** for Safari/CwayClient in iOS Settings. Voice uses on-device speech (no OpenAI key). Replies use your **Cursor** key + proxy.'
             });
-          } else {
-            setStatus('Could not open mic — type instead');
+          }
+        };
+        rec.onend = () => {
+          setListeningUi(false);
+          if (state.busy) return;
+          const text = (finalText || els.prompt.value).trim();
+          if (text && hadResult) handleSend(text);
+          else idleStatus();
+        };
+
+        async function toggleSpeech(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (state.busy) return;
+          if (state.listening) {
+            ignoreErrors = true;
+            try {
+              rec.stop();
+            } catch {
+              /* ignore */
+            }
+            setTimeout(() => {
+              ignoreErrors = false;
+            }, 250);
+            return;
+          }
+          try {
+            rec.start();
+          } catch {
+            setStatus('Mic busy — tap again');
+            setListeningUi(false);
           }
         }
+
+        els.micBtn.classList.remove('disabled');
+        els.micBtn.title = 'Tap to talk · sends to Cursor';
+        els.orbBtn.title = 'Tap to talk · sends to Cursor';
+        els.micBtn.addEventListener('click', toggleSpeech);
+        els.orbBtn.addEventListener('click', toggleSpeech);
+        state.voiceSupported = true;
+        return;
       }
 
+      // No Web Speech — last resort MediaRecorder (still no Whisper required; user can type)
       els.micBtn.classList.remove('disabled');
-      els.micBtn.title = 'Tap to record · tap again to send';
-      els.orbBtn.title = 'Tap to record · tap again to send';
-      els.micBtn.addEventListener('click', toggleRecord);
-      els.orbBtn.addEventListener('click', toggleRecord);
-      state.voiceSupported = true;
+      els.micBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        setStatus('This iOS version needs typing — Web Speech unavailable');
+        appendMessage({
+          role: 'system',
+          content:
+            'On-device speech isn’t available in this browser. Type your message — with a Cursor API key + proxy it still answers via your Cursor models.'
+        });
+      });
       return;
     }
 
@@ -1007,9 +1046,16 @@
     document.getElementById('setBaseUrl').value = state.settings.baseUrl || '';
     document.getElementById('setModel').value = state.settings.model || 'auto';
     document.getElementById('setWorkspace').value = state.settings.workspacePath || '';
+    document.getElementById('setProxyUrl').value = state.settings.proxyUrl || '';
     document.getElementById('setConfirmShell').checked = state.settings.confirmShell !== false;
     document.getElementById('setVoice').checked = state.settings.voiceEnabled !== false;
-    syncProviderFields();
+    // Phone defaults to Cursor settings visible
+    if (isPhone) {
+      document.getElementById('setProvider').value = 'cursor';
+      syncProviderFields();
+    } else {
+      syncProviderFields();
+    }
 
     await refreshModels(false);
     updateCursorCard();
@@ -1171,6 +1217,7 @@
       baseUrl: document.getElementById('setBaseUrl').value.trim() || 'https://api.openai.com/v1',
       model: document.getElementById('setModel').value.trim() || 'auto',
       workspacePath: document.getElementById('setWorkspace').value.trim(),
+      proxyUrl: document.getElementById('setProxyUrl').value.trim(),
       confirmShell: document.getElementById('setConfirmShell').checked,
       voiceEnabled: document.getElementById('setVoice').checked
     };

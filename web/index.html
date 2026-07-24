@@ -152,9 +152,13 @@
           <span>Cursor API key</span>
           <input name="cursorApiKey" id="setCursorKey" type="password" placeholder="From cursor.com/dashboard/api" />
         </label>
+        <label>
+          <span>Cursor proxy URL (needed on iPhone)</span>
+          <input name="proxyUrl" id="setProxyUrl" placeholder="https://YOUR-PROJECT.vercel.app/api/cursor" />
+        </label>
         <p class="hint">
-          CwayClient uses the official <strong>@cursor/sdk</strong> so you can pick any model on your Cursor plan
-          (Composer, Claude, GPT, Gemini, etc.).
+          <strong>iPhone:</strong> voice uses on-device speech (no OpenAI key). Replies go through your Cursor key + model.
+          Deploy this repo to Vercel once, then paste the proxy URL above (see README).
         </p>
       </div>
 
@@ -251,6 +255,7 @@
   </dialog>
 
   <script src="native.js"></script>
+  <script src="cursor-cloud.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
