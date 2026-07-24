@@ -482,11 +482,39 @@ label input:focus,
   cursor: pointer;
   font-size: 1.1rem;
 }
-.mic.hot {
+.mic.hot, .orb-btn.hot .orb-core {
   background: rgba(255,107,122,.18);
   border-color: rgba(255,107,122,.45);
   color: #ffc0c6;
 }
+.mic.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.install-banner {
+  display: none;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 40;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(16, 26, 36, 0.96);
+  box-shadow: var(--shadow);
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.install-banner.show { display: flex; }
+.install-banner p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+.install-banner .actions { display: flex; gap: 8px; flex-shrink: 0; }
 .composer textarea {
   resize: none;
   min-height: 44px;

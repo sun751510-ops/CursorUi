@@ -502,72 +502,141 @@
 
   function setupVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const secure = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+    state.listening = false;
+    state.voiceSupported = Boolean(SR) && secure;
+
     if (!SR) {
-      els.micBtn.title = 'Voice not supported in this browser';
+      els.micBtn.title = 'Voice not supported here — type instead';
+      els.micBtn.classList.add('disabled');
+      els.orbBtn.title = 'Voice not supported here — type instead';
       return;
     }
+    if (!secure) {
+      els.micBtn.title = 'Voice needs HTTPS';
+      els.micBtn.classList.add('disabled');
+      return;
+    }
+
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
     rec.lang = navigator.language || 'en-US';
+    rec.maxAlternatives = 1;
     let finalText = '';
+    let hadResult = false;
+    let ignoreErrors = false;
+
+    const idleStatus = () =>
+      setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+
+    const setListeningUi = (on) => {
+      state.listening = on;
+      els.micBtn.classList.toggle('hot', on);
+      els.orbBtn.classList.toggle('hot', on);
+      if (on) {
+        setOrb('listening');
+        setStatus('Listening… tap again to send');
+      } else if (!state.busy) {
+        setOrb('idle');
+      }
+    };
 
     rec.onstart = () => {
       finalText = '';
-      els.micBtn.classList.add('hot');
-      setOrb('listening');
-      setStatus('Listening…');
+      hadResult = false;
+      setListeningUi(true);
     };
     rec.onresult = (e) => {
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i += 1) {
         const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finalText += t;
-        else interim += t;
+        if (e.results[i].isFinal) {
+          finalText += `${t} `;
+          hadResult = true;
+        } else interim += t;
       }
       els.prompt.value = (finalText || interim).trim();
       autoGrow();
     };
-    rec.onerror = () => {
-      els.micBtn.classList.remove('hot');
-      setOrb('idle');
-      setStatus('Mic error');
+    rec.onerror = (e) => {
+      const code = e?.error || 'unknown';
+      // Normal when user stops early / silence — not a hard failure
+      if (code === 'aborted' || code === 'no-speech' || ignoreErrors) {
+        setListeningUi(false);
+        if (!hadResult) idleStatus();
+        return;
+      }
+      setListeningUi(false);
+      const tips = {
+        'not-allowed': 'Mic blocked — allow microphone in browser settings',
+        'service-not-allowed': 'Voice blocked on this browser/site — type instead',
+        network: 'Voice service unavailable — type instead',
+        'audio-capture': 'No microphone found',
+        'bad-grammar': 'Voice engine glitch — try again',
+        'language-not-supported': 'Language not supported — type instead'
+      };
+      setStatus(tips[code] || `Voice unavailable (${code}) — type instead`);
     };
     rec.onend = () => {
-      els.micBtn.classList.remove('hot');
-      if (!state.busy) setOrb('idle');
-      const text = els.prompt.value.trim();
-      if (text) handleSend(text);
-      else setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+      setListeningUi(false);
+      if (state.busy) return;
+      const text = (finalText || els.prompt.value).trim();
+      if (text && hadResult) {
+        els.prompt.value = text;
+        handleSend(text);
+      } else {
+        idleStatus();
+      }
     };
     state.recognition = rec;
 
-    const start = (e) => {
+    async function ensureMicPermission() {
+      if (!navigator.mediaDevices?.getUserMedia) return true;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+        return true;
+      } catch {
+        setStatus('Mic blocked — allow microphone, or just type');
+        return false;
+      }
+    }
+
+    async function toggleListen(e) {
       e.preventDefault();
+      e.stopPropagation();
       if (state.busy) return;
+
+      if (state.listening) {
+        ignoreErrors = true;
+        try {
+          rec.stop();
+        } catch {
+          /* ignore */
+        }
+        setTimeout(() => {
+          ignoreErrors = false;
+        }, 300);
+        return;
+      }
+
+      const ok = await ensureMicPermission();
+      if (!ok) return;
       try {
+        finalText = '';
+        hadResult = false;
         rec.start();
-      } catch {
-        /* already started */
+      } catch (err) {
+        setStatus('Mic busy — tap again in a second');
+        setListeningUi(false);
       }
-    };
-    const stop = (e) => {
-      e.preventDefault();
-      try {
-        rec.stop();
-      } catch {
-        /* ignore */
-      }
-    };
-    els.micBtn.addEventListener('mousedown', start);
-    els.micBtn.addEventListener('mouseup', stop);
-    els.micBtn.addEventListener('mouseleave', stop);
-    els.micBtn.addEventListener('touchstart', start, { passive: false });
-    els.micBtn.addEventListener('touchend', stop);
-    els.orbBtn.addEventListener('mousedown', start);
-    els.orbBtn.addEventListener('mouseup', stop);
-    els.orbBtn.addEventListener('touchstart', start, { passive: false });
-    els.orbBtn.addEventListener('touchend', stop);
+    }
+
+    els.micBtn.title = 'Tap to talk · tap again to send';
+    els.orbBtn.title = 'Tap to talk · tap again to send';
+    els.micBtn.addEventListener('click', toggleListen);
+    els.orbBtn.addEventListener('click', toggleListen);
   }
 
   function syncProviderFields() {
@@ -576,9 +645,62 @@
     els.openaiSettings.hidden = p !== 'openai';
   }
 
+  function setupInstallPrompt() {
+    const banner = document.getElementById('installBanner');
+    const btn = document.getElementById('installBtn');
+    const dismiss = document.getElementById('installDismiss');
+    if (!banner || !btn) return;
+
+    let deferred = null;
+    const dismissed = localStorage.getItem('cway-install-dismissed') === '1';
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      if (!dismissed) banner.classList.add('show');
+    });
+
+    btn.addEventListener('click', async () => {
+      if (deferred) {
+        deferred.prompt();
+        await deferred.userChoice.catch(() => {});
+        deferred = null;
+        banner.classList.remove('show');
+        return;
+      }
+      // iOS / browsers without beforeinstallprompt
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      appendMessage({
+        role: 'system',
+        content: isIOS
+          ? 'Install on iPhone: Safari Share → Add to Home Screen.'
+          : 'Install: use your browser menu → Install app / Add to Home Screen.'
+      });
+      banner.classList.remove('show');
+    });
+
+    dismiss?.addEventListener('click', () => {
+      localStorage.setItem('cway-install-dismissed', '1');
+      banner.classList.remove('show');
+    });
+
+    // Show manual tip on iOS Safari (no beforeinstallprompt)
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if (isIOS && !standalone && !dismissed) {
+      banner.classList.add('show');
+      btn.textContent = 'How';
+    }
+
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  }
+
   async function boot() {
     renderSuggestions();
     setupVoice();
+    setupInstallPrompt();
     const bootData = await api.getBootstrap();
     state.mode = bootData.mode || (window.cway ? 'desktop' : 'demo');
     state.commands = bootData.commands || [];

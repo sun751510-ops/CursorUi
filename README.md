@@ -2,22 +2,35 @@
 
 Desktop AI copilot (Dexter / Jarvis-style) with a polished webview UI, real OS commands, voice, and **direct Cursor model access** via the official `@cursor/sdk`.
 
-## Mobile UI demo (phone)
+## Phone app (PWA)
 
 **Open on your phone:**  
-https://litter.catbox.moe/3zg2ny.html
+https://litter.catbox.moe/77fen5.html  
 
-(Older snapshot — rebuild `web/phone.html` after UI changes, or use GitHub Pages after merge.)
-
-**GitHub Pages (after merge):**  
+**GitHub Pages (after merge — best for Install/PWA):**  
 https://sun751510-ops.github.io/CursorUi/
 
-## Desktop (Cursor-powered)
+Then **Install / Add to Home Screen**:
+- **iPhone:** Safari → Share → Add to Home Screen  
+- **Android:** Chrome menu → Install app / Add to Home Screen  
+
+Voice: **tap** the orb/mic to start, **tap again** to send (hold-to-talk was causing mic errors). If the browser blocks speech, just type — common on some iOS/in-app browsers.
+
+## Desktop app (installable)
 
 ```bash
 npm install
-npm start
+npm start          # run from source
+npm run dist       # build installers into release/
 ```
+
+| OS | Command | Output |
+| --- | --- | --- |
+| Windows | `npm run dist:win` | `release/*.exe` |
+| macOS | `npm run dist:mac` | `release/*.dmg` |
+| Linux | `npm run dist:linux` | `release/*.AppImage` |
+
+## Cursor-powered AI
 
 1. Open **Settings**
 2. Provider: **Cursor**

@@ -531,6 +531,8 @@ function registerIpc() {
   });
 }
 
+app.setName('CwayClient');
+
 app.whenReady().then(() => {
   registerIpc();
   createWindow();
