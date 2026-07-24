@@ -1,61 +1,67 @@
 # CwayClient
 
-Desktop AI copilot (Dexter / Jarvis-style) with a polished webview UI, real OS commands, voice, and **direct Cursor model access** via the official `@cursor/sdk`.
+Dexter / Jarvis-style AI copilot with a webview UI, voice, OS commands (desktop), and **Cursor model access** via `@cursor/sdk`.
 
-## Phone app (PWA)
+## Real mobile app (recommended for mic)
 
-**Open on your phone:**  
-https://litter.catbox.moe/77fen5.html  
-
-**GitHub Pages (after merge — best for Install/PWA):**  
-https://sun751510-ops.github.io/CursorUi/
-
-Then **Install / Add to Home Screen**:
-- **iPhone:** Safari → Share → Add to Home Screen  
-- **Android:** Chrome menu → Install app / Add to Home Screen  
-
-Voice: **tap** the orb/mic to start, **tap again** to send (hold-to-talk was causing mic errors). If the browser blocks speech, just type — common on some iOS/in-app browsers.
-
-## Desktop app (installable)
+The website mic is often blocked by browsers. Use the **native Capacitor app** (real WebView + device speech APIs).
 
 ```bash
 npm install
-npm start          # run from source
-npm run dist       # build installers into release/
+npm run mobile:sync
 ```
 
-| OS | Command | Output |
-| --- | --- | --- |
-| Windows | `npm run dist:win` | `release/*.exe` |
-| macOS | `npm run dist:mac` | `release/*.dmg` |
-| Linux | `npm run dist:linux` | `release/*.AppImage` |
+### Android phone
+1. Install [Android Studio](https://developer.android.com/studio)
+2. Plug in your phone (USB debugging on) **or** use an emulator
+3. From this repo:
+   ```bash
+   npm run mobile:android
+   ```
+   Or: `npm run mobile:run:android`
+4. In Android Studio → **Run** ▶ on your device  
+5. When prompted, **Allow microphone** + speech recognition
 
-## Cursor-powered AI
+### iPhone
+1. Needs a Mac with [Xcode](https://developer.apple.com/xcode/)
+2. From this repo:
+   ```bash
+   npm run mobile:ios
+   ```
+3. In Xcode: select your iPhone → **Run** ▶  
+4. Trust the developer certificate on the phone if asked  
+5. Allow **Microphone** and **Speech Recognition**
 
-1. Open **Settings**
-2. Provider: **Cursor**
-3. Paste your API key from [cursor.com/dashboard/api](https://cursor.com/dashboard/api)
-4. Click **Test** / **Refresh models** in the left rail
-5. Pick any model on your plan (Composer, Claude, GPT, Gemini, `auto`, …)
+Project folders: `android/` and `ios/` (Capacitor WebView hosts `web/`).
 
-CwayClient creates a local Cursor Agent with custom tools (`run_cway_command`, `add_cway_command`, `list_cway_commands`) so the model you choose can control this machine.
+## Website demo (UI only)
 
-## What it feels like
+https://litter.catbox.moe/77fen5.html  
 
-Inspired by streamer-copilot UIs (e.g. Dexter): reactive orb, hold-to-talk voice, command rail, live status while Cursor thinks/tools run.
+Mic often fails here — that’s a browser limit, not the app. Use the native build above for voice.
 
-## Prebuilt OS commands
+## Desktop app
 
-Open URL/path/app, list/read/write files, shell (with confirm), clipboard, notify, system info, home folder — plus AI-invented custom commands.
+```bash
+npm install
+npm start              # Electron desktop
+npm run dist:win       # .exe
+npm run dist:mac       # .dmg
+npm run dist:linux     # .AppImage
+```
 
-## Fallback
+## Cursor AI (desktop)
 
-Settings → provider **OpenAI-compatible** still works with any `/v1/chat/completions` endpoint if you are not using Cursor.
+1. Settings → provider **Cursor**
+2. API key from https://cursor.com/dashboard/api
+3. Refresh models → pick any model on your plan
 
 ## Layout
 
 ```
-electron/   main, preload, Cursor bridge, OS executors
-web/        UI (desktop + mobile demo)
-legacy/     previous Macro Studio
+electron/   desktop app + Cursor bridge + OS commands
+web/        UI loaded by Electron + Capacitor
+android/    native Android WebView app
+ios/        native iOS WebView app
+legacy/     old Macro Studio
 ```
