@@ -145,35 +145,100 @@
       return s.proxyUrl || settings.proxyUrl || '';
     }
 
+    async function detectProxyKind(base) {
+      if (!base) return 'none';
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2500);
+        const res = await fetch(`${base}/health`, { signal: ctrl.signal }).catch(() =>
+          fetch(base, { signal: ctrl.signal })
+        );
+        clearTimeout(timer);
+        const data = await res.json().catch(() => ({}));
+        if (data.service === 'cwayclient-relay') return 'relay';
+        if (data.service === 'cwayclient-cf-proxy') return 'cloud';
+      } catch {
+        /* ignore */
+      }
+      if (/workers\.dev|cloudflare/i.test(base)) return 'cloud';
+      if (/:3847\b/.test(base) || /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|localhost|127\.)/i.test(base)) {
+        return 'relay';
+      }
+      return 'cloud';
+    }
+
     async function demoChat({ messages }) {
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
-      const relay = rawProxyUrl().replace(/\/$/, '');
+      const proxy = rawProxyUrl().replace(/\/$/, '');
+      const key = rawCursorKey();
 
-      // Phone → desktop CwayClient Wi‑Fi relay (Cursor SDK on your computer)
-      if ((settings.provider || 'cursor') === 'cursor' && relay) {
+      if ((settings.provider || 'cursor') === 'cursor' && proxy) {
+        const kind = await detectProxyKind(proxy);
+
+        // Home: phone → desktop Wi‑Fi relay
+        if (kind === 'relay') {
+          try {
+            const res = await fetch(`${proxy}/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages, model: settings.model || 'auto' })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.ok === false) {
+              throw new Error(data.error || `Relay error ${res.status}`);
+            }
+            return {
+              ok: true,
+              message: data.message || { role: 'assistant', content: data.text || 'Done.' },
+              commands: data.commands || allCommands(),
+              provider: 'cursor-relay',
+              model: data.model || settings.model
+            };
+          } catch (err) {
+            return {
+              ok: false,
+              error:
+                (err.message || String(err)) +
+                ' — Is CwayClient running on your computer? Same Wi‑Fi? Check the relay URL.'
+            };
+          }
+        }
+
+        // Holiday / no PC: phone → Cloudflare Worker → Cursor Cloud Agents
+        if (!key) {
+          return {
+            ok: false,
+            error: 'Add your Cursor API key in Settings (needed with the Cloudflare Worker proxy).'
+          };
+        }
+        if (!window.CwayCursorCloud) {
+          return { ok: false, error: 'Cursor cloud helper missing — reload the page.' };
+        }
         try {
-          const res = await fetch(`${relay}/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages, model: settings.model || 'auto' })
+          const result = await window.CwayCursorCloud.chat({
+            apiKey: key,
+            proxyUrl: proxy,
+            model: settings.model || 'auto',
+            userText: last,
+            agentId
           });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok || data.ok === false) {
-            throw new Error(data.error || `Relay error ${res.status}`);
+          if (result.agentId) {
+            agentId = result.agentId;
+            saveDemoStore({ cursorAgentId: agentId });
           }
           return {
             ok: true,
-            message: data.message || { role: 'assistant', content: data.text || 'Done.' },
-            commands: data.commands || allCommands(),
-            provider: 'cursor-relay',
-            model: data.model || settings.model
+            message: { role: 'assistant', content: result.text || 'Done.' },
+            commands: allCommands(),
+            provider: 'cursor-cloud',
+            model: settings.model
           };
         } catch (err) {
           return {
             ok: false,
             error:
               (err.message || String(err)) +
-              ' — Is CwayClient running on your computer? Same Wi‑Fi? Check the relay URL.'
+              ' — Check Proxy URL (Cloudflare Worker) and Cursor API key.'
           };
         }
       }
@@ -185,11 +250,11 @@
           role: 'assistant',
           content:
             `Got “${last.slice(0, 120)}”.\n\n` +
-            `To use **Cursor from your iPhone**:\n` +
-            `1. On your computer: \`npm start\` (CwayClient desktop)\n` +
-            `2. Put your Cursor API key in the desktop Settings\n` +
-            `3. On phone Settings → Desktop relay URL = \`http://YOUR-PC-IP:3847\`\n` +
-            `4. Tap **Test**, then mic / type — replies come from Cursor on your PC`
+            `**On holiday (no computer):**\n` +
+            `1. Deploy \`cloudflare/worker.js\` on Cloudflare Workers (free)\n` +
+            `2. Settings → Proxy URL = \`https://YOUR-NAME.workers.dev\`\n` +
+            `3. Paste your Cursor API key → **Test** → mic / type\n\n` +
+            `**At home:** run desktop \`npm start\` and use the Wi‑Fi relay URL instead.`
         },
         commands: allCommands(),
         provider: 'cursor-demo'
@@ -264,42 +329,82 @@
         return { ok: true };
       },
       listModels: async () => {
-        const relay = rawProxyUrl().replace(/\/$/, '');
-        if (relay) {
-          try {
-            const res = await fetch(`${relay}/models`);
-            const data = await res.json();
-            if (res.ok && data.models?.length) return { ok: true, models: data.models };
-          } catch {
-            /* fall through */
+        const proxy = rawProxyUrl().replace(/\/$/, '');
+        const key = rawCursorKey();
+        if (proxy) {
+          const kind = await detectProxyKind(proxy);
+          if (kind === 'relay') {
+            try {
+              const res = await fetch(`${proxy}/models`);
+              const data = await res.json();
+              if (res.ok && data.models?.length) return { ok: true, models: data.models };
+            } catch {
+              /* fall through */
+            }
+          } else if (key && window.CwayCursorCloud) {
+            try {
+              const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl: proxy });
+              if (models?.length) return { ok: true, models };
+            } catch {
+              /* fall through */
+            }
           }
         }
         return { ok: true, models: DEMO_MODELS };
       },
       testCursor: async () => {
-        const relay = rawProxyUrl().replace(/\/$/, '');
-        if (!relay) {
+        const proxy = rawProxyUrl().replace(/\/$/, '');
+        const key = rawCursorKey();
+        if (!proxy) {
           return {
             ok: false,
-            error: 'Set Desktop relay URL (http://YOUR-PC-IP:3847)',
+            error: 'Set Proxy URL (Cloudflare Worker on holiday, or desktop relay at home)',
             models: DEMO_MODELS
           };
         }
+        const kind = await detectProxyKind(proxy);
+        if (kind === 'relay') {
+          try {
+            const res = await fetch(`${proxy}/health`);
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Relay unhealthy');
+            const modelsRes = await fetch(`${proxy}/models`);
+            const modelsData = await modelsRes.json().catch(() => ({}));
+            return {
+              ok: true,
+              message: `Relay OK · ${data.ips?.[0] || 'desktop'} · model ${data.model || 'auto'}`,
+              models: modelsData.models || DEMO_MODELS
+            };
+          } catch (err) {
+            return {
+              ok: false,
+              error: `${err.message || err} — start CwayClient on your PC (same Wi‑Fi)`,
+              models: DEMO_MODELS
+            };
+          }
+        }
+        if (!key) {
+          return {
+            ok: false,
+            error: 'Add Cursor API key (required for Cloudflare Worker)',
+            models: DEMO_MODELS
+          };
+        }
+        if (!window.CwayCursorCloud) {
+          return { ok: false, error: 'Reload the page — cloud helper missing', models: DEMO_MODELS };
+        }
         try {
-          const res = await fetch(`${relay}/health`);
-          const data = await res.json();
-          if (!res.ok || !data.ok) throw new Error(data.error || 'Relay unhealthy');
-          const modelsRes = await fetch(`${relay}/models`);
-          const modelsData = await modelsRes.json().catch(() => ({}));
+          const health = await fetch(`${proxy}/health`).then((r) => r.json()).catch(() => ({}));
+          const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl: proxy });
           return {
             ok: true,
-            message: `Relay OK · ${data.ips?.[0] || 'desktop'} · model ${data.model || 'auto'}`,
-            models: modelsData.models || DEMO_MODELS
+            message: `Cloudflare proxy OK · ${models.length} models · ${health.service || 'cursor'}`,
+            models: models.length ? models : DEMO_MODELS
           };
         } catch (err) {
           return {
             ok: false,
-            error: `${err.message || err} — start CwayClient on your PC (same Wi‑Fi)`,
+            error: `${err.message || err} — deploy cloudflare/worker.js and check the URL + API key`,
             models: DEMO_MODELS
           };
         }
@@ -969,7 +1074,7 @@
       appendMessage({
         role: 'system',
         content: isIOS
-          ? '**iPhone install (no Mac needed)**\n1. Open this page in **Safari**\n2. Tap Share (square with ↑)\n3. Tap **Add to Home Screen** → Add\n4. Open CwayClient from your home screen\n5. On your computer run `npm start`, paste Cursor API key, then on phone Settings → Desktop relay URL = `http://YOUR-PC-IP:3847`'
+          ? '**iPhone install (no Mac needed)**\n1. Open this page in **Safari**\n2. Tap Share (square with ↑)\n3. Tap **Add to Home Screen** → Add\n4. Deploy `cloudflare/worker.js` on Cloudflare (free) from your phone\n5. Settings → Proxy URL = `https://YOUR-NAME.workers.dev` + Cursor API key → Test'
           : 'Use your browser menu → Install app / Add to Home Screen.'
       });
       openRail(false);
@@ -1029,7 +1134,7 @@
       els.modeBadge.textContent = state.mode === 'demo' ? 'Mobile demo' : 'Desktop';
       els.fineprint.textContent =
         state.mode === 'demo'
-          ? 'Phone UI · pair Desktop relay URL to use Cursor on your PC'
+          ? 'Phone UI · Cloudflare Worker proxy or desktop Wi‑Fi relay'
           : `Desktop · Cursor SDK · model ${state.settings.model || 'auto'}`;
       els.heroEyebrow.textContent =
         state.mode === 'demo' ? 'Demo · phone preview' : 'Cursor-linked · standing by';
@@ -1125,8 +1230,8 @@
           role: 'system',
           content: isPhone
             ? (state.settings.proxyUrl || '').trim()
-              ? 'Ready — mic / type goes to Cursor on your computer via Wi‑Fi relay.'
-              : '**Pair with your computer:** run `npm start` on the PC → Settings shows a Phone relay URL → paste it here under Settings → Desktop relay URL → tap **Test**.'
+              ? 'Ready — mic / type goes to Cursor through your proxy.'
+              : '**On holiday:** deploy `cloudflare/worker.js` → Settings → Proxy URL + Cursor API key → **Test**. (At home you can use the desktop Wi‑Fi relay instead.)'
             : state.mode === 'demo'
               ? 'Website demo (mic often blocked). Type to chat.'
               : 'Connect Cursor in Settings, pick a model, then talk or type. Phone relay URL is shown below for your iPhone.'

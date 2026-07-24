@@ -23,7 +23,7 @@
   <div class="noise" aria-hidden="true"></div>
 
   <div id="installBanner" class="install-banner" role="dialog" aria-label="Install app">
-    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen · then paste your PC’s relay URL</p>
+    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen · then add Cloudflare Worker + Cursor key</p>
     <div class="actions">
       <button type="button" class="ghost-btn" id="installDismiss">Later</button>
       <button type="button" class="primary-btn" id="installBtn">How</button>
@@ -149,16 +149,17 @@
 
       <div id="cursorSettings">
         <label>
-          <span>Cursor API key (desktop app)</span>
+          <span>Cursor API key</span>
           <input name="cursorApiKey" id="setCursorKey" type="password" placeholder="From cursor.com/dashboard/api" />
         </label>
         <label>
-          <span>Desktop relay URL (iPhone → your computer)</span>
-          <input name="proxyUrl" id="setProxyUrl" placeholder="http://192.168.1.20:3847" />
+          <span>Proxy URL</span>
+          <input name="proxyUrl" id="setProxyUrl" placeholder="https://cwayclient-cursor-proxy.YOUR.workers.dev" />
         </label>
         <p class="hint" id="cursorHint">
-          <strong>iPhone:</strong> run CwayClient on your computer (same Wi‑Fi), paste the <strong>Phone relay</strong> URL from desktop Settings
-          (like <code>http://192.168.x.x:3847</code>). Mic uses on-device speech; Cursor runs on your PC.
+          <strong>Holiday (no PC):</strong> deploy <code>cloudflare/worker.js</code> on Cloudflare Workers → paste
+          <code>https://….workers.dev</code> here + your Cursor API key → Test.
+          <br /><strong>At home:</strong> desktop <code>npm start</code> relay URL like <code>http://192.168.x.x:3847</code> (key stays on the PC).
         </p>
         <p class="hint" id="relayInfo" hidden></p>
       </div>
@@ -172,7 +173,7 @@
           <span>API key</span>
           <input name="apiKey" id="setApiKey" type="password" placeholder="sk-… from platform.openai.com" />
         </label>
-        <p class="hint">Desktop fallback when Cursor is unavailable. Phone mic uses on-device speech + the desktop relay.</p>
+        <p class="hint">Desktop fallback when Cursor is unavailable. Phone mic uses on-device speech.</p>
       </div>
 
       <label>
@@ -256,6 +257,7 @@
   </dialog>
 
   <script src="native.js"></script>
+  <script src="cursor-cloud.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

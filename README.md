@@ -2,28 +2,45 @@
 
 Dexter / Jarvis-style AI copilot — iPhone Home Screen UI + desktop Electron with Cursor.
 
-## iPhone → Cursor (Wi‑Fi relay)
+## iPhone on holiday (no computer) — Cloudflare Worker
 
-Your phone talks to the **CwayClient desktop app on your computer** over Wi‑Fi. Cursor runs on the PC; the phone is the mic + UI.
+Safari can’t call Cursor’s API directly (CORS). A free **Cloudflare Worker** bridges that — no Vercel, no PC.
 
-### On your computer
+### 1. Deploy the Worker (works from your phone)
+1. Open [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Worker**
+2. Paste the contents of [`cloudflare/worker.js`](cloudflare/worker.js)
+3. **Deploy** → copy your URL (`https://….workers.dev`)
+
+Or from a computer:
+```bash
+cd cloudflare
+npx wrangler login
+npx wrangler deploy
+```
+
+### 2. On your iPhone
+1. Open the CwayClient phone UI in **Safari** → Share → **Add to Home Screen**
+2. Settings → **Proxy URL** = your `https://….workers.dev`
+3. Paste your [Cursor API key](https://cursor.com/dashboard/api)
+4. Tap **Test** → mic or type
+
+Flow: **iPhone mic → speech-to-text → Cloudflare Worker → Cursor Cloud Agents → reply**
+
+## iPhone at home (Wi‑Fi relay)
+
+Your phone talks to the **CwayClient desktop app** on the same Wi‑Fi. Cursor runs on the PC.
+
+### Computer
 ```bash
 npm install
 npm start
 ```
-1. Desktop Settings → paste your [Cursor API key](https://cursor.com/dashboard/api)  
-2. Pick a model  
-3. Note the **Phone relay** URL shown in Settings (like `http://192.168.1.20:3847`)
+1. Desktop Settings → Cursor API key  
+2. Note the **Phone relay** URL (`http://192.168.x.x:3847`)
 
-### On your iPhone
-1. Open the phone UI in **Safari** → Add to Home Screen  
-2. Settings → **Desktop relay URL** = that `http://IP:3847`  
-3. Tap **Test** (must be on the **same Wi‑Fi**)  
-4. Tap the mic (on-device speech) or type — replies come from Cursor on your PC
-
-Flow: **iPhone mic → speech-to-text → Wi‑Fi relay → Cursor on desktop → reply back to phone**
-
-> iOS may ask to allow **Local Network** access for the Home Screen app — allow it.
+### iPhone
+1. Settings → **Proxy URL** = that relay URL  
+2. Tap **Test** → mic / type  
 
 ## Desktop only
 
@@ -36,7 +53,7 @@ Uses `@cursor/sdk` locally for chat + OS commands.
 ## Layout
 
 ```
-electron/   desktop app, Cursor SDK, Wi‑Fi phone relay (:3847)
-web/        UI (phone Home Screen + desktop)
-android/ ios/   optional Capacitor shells
+cloudflare/   free Worker proxy for phone-only Cursor (no Vercel)
+electron/     desktop app, Cursor SDK, Wi‑Fi phone relay (:3847)
+web/          UI (phone Home Screen + desktop)
 ```
