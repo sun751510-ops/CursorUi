@@ -921,9 +921,16 @@
 
   async function boot() {
     const isNativeApp = Boolean(window.CwayNative?.isNative?.());
+    const isPhone = window.matchMedia('(max-width: 900px)').matches;
     if (isNativeApp) {
       await window.CwayNative.ready();
       document.getElementById('installBanner')?.classList.remove('show');
+    }
+
+    // Phone: start compact so composer is never cut off
+    if (isPhone) {
+      document.body.classList.add('is-phone');
+      els.heroStrip.classList.add('collapsed');
     }
 
     renderSuggestions();
@@ -1022,7 +1029,10 @@
   els.btnClearChat.addEventListener('click', async () => {
     state.messages = [];
     els.chat.innerHTML = '';
-    els.heroStrip.classList.remove('collapsed');
+    // Keep compact on phones so the composer stays on-screen
+    if (!document.body.classList.contains('is-phone')) {
+      els.heroStrip.classList.remove('collapsed');
+    }
     window.speechSynthesis?.cancel();
     await api.saveHistory([]);
     appendMessage({ role: 'system', content: 'Chat cleared.' });

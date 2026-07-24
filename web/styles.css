@@ -647,33 +647,38 @@ label input:focus,
 .send-icon { display: none; }
 
 @media (max-width: 900px) {
+  /* Full-screen lock — fixes iPhone cutting off half the UI */
   html, body {
+    width: 100%;
     height: 100%;
-    height: 100dvh;
+    margin: 0;
+    overflow: hidden;
     overscroll-behavior: none;
     -webkit-text-size-adjust: 100%;
-  }
-  body {
-    overflow: hidden;
-    padding:
-      env(safe-area-inset-top, 0)
-      env(safe-area-inset-right, 0)
-      0
-      env(safe-area-inset-left, 0);
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
 
   .app {
-    grid-template-columns: 1fr;
-    height: 100dvh;
-    height: 100svh;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    overflow: hidden;
   }
 
   .stage {
-    height: 100%;
+    flex: 1;
     min-height: 0;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    grid-template-rows: none;
+    overflow: hidden;
   }
 
   .rail {
@@ -681,164 +686,145 @@ label input:focus,
     top: 0;
     bottom: 0;
     left: 0;
-    width: min(340px, 86vw);
-    max-width: 100%;
+    width: min(320px, 84vw);
     z-index: 30;
     transform: translateX(-105%);
     transition: transform 0.28s ease;
     box-shadow: var(--shadow);
-    padding-top: env(safe-area-inset-top, 0);
-    padding-bottom: env(safe-area-inset-bottom, 0);
-    background: rgba(6, 12, 18, 0.96);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(6, 12, 18, 0.98);
   }
   .rail.open { transform: none; }
   .rail-close { display: inline-grid; width: 44px; height: 44px; }
   .menu-btn { display: inline-grid; width: 44px; height: 44px; font-size: 1.15rem; }
   .mobile-only { display: inline-grid !important; }
-  .desktop-copy { display: none; }
+  .desktop-copy { display: none !important; }
   .mobile-copy { display: block; }
 
   .topbar {
-    padding: 10px 12px;
-    padding-top: max(10px, env(safe-area-inset-top, 0px));
-    gap: 10px;
-    min-height: 56px;
-    position: sticky;
-    top: 0;
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    gap: 8px;
+    min-height: 0;
+    position: relative;
     z-index: 5;
   }
-  .top-title h1 { font-size: 1.05rem; }
+  .top-title h1 { font-size: 1rem; }
   .top-title p {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 52vw;
+    max-width: 48vw;
   }
-  .chip {
-    min-height: 36px;
-    padding: 8px 12px;
-  }
-  .icon-btn {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-  }
+  .chip { min-height: 36px; padding: 8px 12px; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 12px; }
 
+  /* Compact hero so chat + composer always fit */
   .hero-strip {
-    flex-direction: column;
-    text-align: center;
+    flex: 0 0 auto;
+    flex-direction: row;
+    text-align: left;
     align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 14px 16px 8px;
-    max-height: none;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 8px 12px 6px;
+    max-height: 72px;
   }
   .hero-strip.collapsed {
-    max-height: 0;
-    opacity: 0;
-    padding: 0;
+    display: none;
   }
-  .orb-btn { touch-action: manipulation; }
-  .orb {
-    width: 88px;
-    height: 88px;
-  }
+  .orb-btn { flex-shrink: 0; }
+  .orb { width: 52px; height: 52px; }
   .hero-copy h2 {
-    font-size: 1.45rem;
-    margin: 2px 0 4px;
-    letter-spacing: -0.03em;
+    font-size: 1.05rem;
+    margin: 0;
+    line-height: 1.2;
   }
   .lede {
-    font-size: 0.9rem;
-    max-width: 28ch;
-    margin: 0 auto;
+    font-size: 0.78rem;
+    max-width: none;
+    margin: 2px 0 0;
+    line-height: 1.3;
   }
-  .eyebrow { font-size: 0.7rem; }
+  .eyebrow { font-size: 0.65rem; margin-bottom: 2px; }
 
   .chat {
-    padding: 4px 12px 8px;
-    gap: 10px;
+    flex: 1 1 auto;
     min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 6px 12px 8px;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
   }
   .msg {
-    max-width: 92%;
-    padding: 12px 14px;
-    font-size: 0.95rem;
-    border-radius: 18px;
+    max-width: 90%;
+    padding: 10px 12px;
+    font-size: 0.92rem;
+    border-radius: 16px;
   }
-  .msg.user { border-bottom-right-radius: 6px; }
-  .msg.assistant { border-bottom-left-radius: 6px; }
-  .msg.tool {
-    font-size: 0.72rem;
-    max-width: 100%;
-  }
+  .msg.tool { font-size: 0.7rem; max-width: 100%; }
 
   .composer-wrap {
-    padding: 0 10px calc(10px + env(safe-area-inset-bottom, 0px));
-    background: linear-gradient(180deg, transparent, rgba(5, 9, 14, 0.92) 18%, rgba(5, 9, 14, 0.98));
+    flex: 0 0 auto;
+    padding: 4px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: rgba(5, 9, 14, 0.96);
+    border-top: 1px solid var(--line);
   }
   .suggestions {
-    padding: 6px 2px 8px;
-    gap: 8px;
+    padding: 4px 0 6px;
+    gap: 6px;
   }
   .suggestions button {
-    padding: 10px 14px;
-    font-size: 0.82rem;
-    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    min-height: 36px;
   }
   .composer {
-    grid-template-columns: 48px 1fr 48px;
-    gap: 8px;
-    padding: 8px;
-    border-radius: 22px;
-    align-items: end;
+    grid-template-columns: 44px 1fr 44px;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 18px;
   }
-  .mic {
-    width: 48px;
-    height: 48px;
-    border-radius: 16px;
-    font-size: 1.2rem;
+  .mic, .send {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
   }
+  .mic { font-size: 1.1rem; }
   .composer textarea {
-    min-height: 48px;
-    max-height: 120px;
-    font-size: 16px; /* prevents iOS zoom */
-    line-height: 1.35;
-    padding: 12px 4px;
+    min-height: 44px;
+    max-height: 96px;
+    font-size: 16px;
+    line-height: 1.3;
+    padding: 10px 4px;
   }
   .send {
-    width: 48px;
-    height: 48px;
     padding: 0;
-    border-radius: 16px;
     display: inline-grid;
     place-items: center;
   }
   .send-label { display: none; }
   .send-icon {
     display: inline-block;
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     font-weight: 800;
     line-height: 1;
   }
-  .fineprint {
-    display: none;
-  }
+  .fineprint { display: none; }
 
   .rail-footer .ghost-btn,
   .connect-actions .ghost-btn,
-  .cmd-item {
-    min-height: 48px;
-    font-size: 0.95rem;
-  }
+  .cmd-item { min-height: 44px; }
   .cmd-search input,
   .model-select,
   label input,
   label select {
-    min-height: 48px;
+    min-height: 44px;
     font-size: 16px;
-    border-radius: 14px;
   }
 
   .modal {
@@ -852,7 +838,7 @@ label input:focus,
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    height: 100dvh;
+    height: 100%;
     width: 100vw;
     background: transparent;
   }
@@ -860,41 +846,41 @@ label input:focus,
     width: 100%;
     max-width: 100%;
     margin: 0;
-    border-radius: 22px 22px 0 0;
-    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
-    max-height: min(88dvh, 720px);
+    border-radius: 20px 20px 0 0;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    max-height: 85%;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
   }
   .modal-card footer {
-    position: sticky;
-    bottom: 0;
-    padding-top: 8px;
-    background: linear-gradient(180deg, transparent, var(--bg2) 30%);
+    display: flex;
+    gap: 8px;
   }
   .modal-card footer .ghost-btn,
   .modal-card footer .primary-btn {
-    min-height: 48px;
+    min-height: 44px;
     flex: 1;
   }
   .grid-2 { grid-template-columns: 1fr; }
 
   .install-banner {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    bottom: auto;
     left: 10px;
     right: 10px;
-    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 14px;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    z-index: 40;
   }
-  .install-banner .actions {
-    width: 100%;
-  }
+  .install-banner p { font-size: 0.78rem; }
+  .install-banner .actions { flex-shrink: 0; }
   .install-banner .actions .ghost-btn,
   .install-banner .actions .primary-btn {
-    flex: 1;
-    min-height: 44px;
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 0.8rem;
   }
 
   body.drawer-open::before {
@@ -906,15 +892,6 @@ label input:focus,
   }
 }
 
-@media (max-width: 420px) {
-  .hero-copy h2 { font-size: 1.28rem; }
-  .suggestions button { max-width: 70vw; }
-  .msg { font-size: 0.92rem; }
-}
-
 @media (display-mode: standalone) {
   .install-banner { display: none !important; }
-  .topbar {
-    padding-top: max(12px, env(safe-area-inset-top, 0px));
-  }
 }
