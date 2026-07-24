@@ -1,10 +1,18 @@
 (() => {
   const SUGGESTIONS = [
     'What can you do?',
+    'Connect me through Cursor',
     'Show system info',
     'Open https://github.com',
-    'Create a command to open my Downloads folder',
-    'List commands'
+    'Create a command to open Downloads'
+  ];
+
+  const DEMO_MODELS = [
+    { id: 'auto', displayName: 'auto (Cursor default)' },
+    { id: 'composer-2.5', displayName: 'Composer 2.5' },
+    { id: 'claude-4.6-sonnet-medium-thinking', displayName: 'Claude 4.6 Sonnet' },
+    { id: 'gpt-5.3-codex', displayName: 'GPT-5.3 Codex' },
+    { id: 'gemini-3.1-pro', displayName: 'Gemini 3.1 Pro' }
   ];
 
   const DEMO_BUILTINS = [
@@ -32,10 +40,13 @@
     fineprint: document.getElementById('fineprint'),
     heroStrip: document.getElementById('heroStrip'),
     heroEyebrow: document.getElementById('heroEyebrow'),
+    orb: document.getElementById('orb'),
+    orbBtn: document.getElementById('orbBtn'),
     chat: document.getElementById('chat'),
     composer: document.getElementById('composer'),
     prompt: document.getElementById('prompt'),
     sendBtn: document.getElementById('sendBtn'),
+    micBtn: document.getElementById('micBtn'),
     suggestions: document.getElementById('suggestions'),
     cmdList: document.getElementById('cmdList'),
     cmdFilter: document.getElementById('cmdFilter'),
@@ -50,22 +61,37 @@
     runForm: document.getElementById('runForm'),
     runFields: document.getElementById('runFields'),
     runTitle: document.getElementById('runTitle'),
-    runDesc: document.getElementById('runDesc')
+    runDesc: document.getElementById('runDesc'),
+    modelSelect: document.getElementById('modelSelect'),
+    cursorDot: document.getElementById('cursorDot'),
+    cursorStatus: document.getElementById('cursorStatus'),
+    btnRefreshModels: document.getElementById('btnRefreshModels'),
+    btnTestCursor: document.getElementById('btnTestCursor'),
+    setProvider: document.getElementById('setProvider'),
+    cursorSettings: document.getElementById('cursorSettings'),
+    openaiSettings: document.getElementById('openaiSettings')
   };
 
   const state = {
     mode: 'demo',
     commands: [],
     messages: [],
+    models: [],
     settings: {
+      provider: 'cursor',
+      cursorApiKey: '',
       apiKey: '',
       baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-4o',
+      model: 'auto',
       confirmShell: true,
-      hasApiKey: false
+      voiceEnabled: true,
+      hasCursorKey: false,
+      hasApiKey: false,
+      workspacePath: ''
     },
     pendingRun: null,
-    busy: false
+    busy: false,
+    recognition: null
   };
 
   function loadDemoStore() {
@@ -87,112 +113,69 @@
     const store = loadDemoStore();
     let custom = store.customCommands || [];
     let settings = {
+      provider: store.provider || 'cursor',
+      cursorApiKey: store.cursorApiKey || '',
       apiKey: store.apiKey || '',
       baseUrl: store.baseUrl || 'https://api.openai.com/v1',
-      model: store.model || 'gpt-4o',
+      model: store.model || 'auto',
       confirmShell: store.confirmShell !== false,
-      hasApiKey: Boolean(store.apiKey)
+      voiceEnabled: store.voiceEnabled !== false,
+      workspacePath: store.workspacePath || '',
+      hasCursorKey: Boolean(store.cursorApiKey),
+      hasApiKey: Boolean(store.apiKey || store.cursorApiKey)
     };
     let history = store.history || [];
-
     const allCommands = () => [...DEMO_BUILTINS, ...custom];
 
     async function demoChat({ messages }) {
-      await sleep(450 + Math.random() * 350);
+      await sleep(500);
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
       const lower = last.toLowerCase();
-
       if (/create|add|new command|invent/.test(lower)) {
-        const id = `demo_${Date.now().toString(36)}`;
         const entry = {
-          id,
+          id: `demo_${Date.now().toString(36)}`,
           name: 'Open Downloads (demo)',
-          description: 'Demo command invented by AI — opens Downloads on desktop',
+          description: 'Demo command invented by AI',
           category: 'custom',
           params: [],
           path: '~/Downloads',
           builtin: false
         };
-        custom = [...custom.filter((c) => c.id !== id), entry];
+        custom = [...custom, entry];
         saveDemoStore({ customCommands: custom });
         return {
           ok: true,
           message: {
             role: 'assistant',
             content:
-              `I created a demo command **${entry.name}** (\`${entry.id}\`).\n\n` +
-              `On phone this is UI-only — in the desktop Electron app it would open your Downloads folder.\n\n` +
-              `You can also say: “create a command that opens https://news.ycombinator.com”.`
+              `Created **${entry.name}**. On desktop (with your Cursor key) I invent and run real OS commands via Cursor models.`
           },
-          trace: [{ tool: 'add_command', args: entry, result: { ok: true, command: entry } }],
-          commands: allCommands()
+          trace: [{ tool: 'add_cway_command', args: entry, result: { ok: true } }],
+          commands: allCommands(),
+          provider: 'cursor-demo'
         };
       }
-
-      if (/system info|host|platform/.test(lower)) {
+      if (/cursor|connect|model/.test(lower)) {
         return {
           ok: true,
           message: {
             role: 'assistant',
             content:
-              'Demo system info (mobile preview):\n' +
-              '• platform: web-demo\n' +
-              '• device: your phone browser\n' +
-              '• note: real OS stats appear in the desktop app'
+              'On desktop: open **Settings → paste your Cursor API key** from cursor.com/dashboard/api, then pick any model in the rail.\n\nThis phone page is UI-only — Cursor SDK runs inside the Electron app.'
           },
-          trace: [{ tool: 'run_command', args: { command_id: 'system_info' }, result: { ok: true, result: { platform: 'web-demo' } } }],
-          commands: allCommands()
+          commands: allCommands(),
+          provider: 'cursor-demo'
         };
       }
-
-      if (/list command|what can you|help|commands/.test(lower)) {
-        const names = allCommands()
-          .slice(0, 8)
-          .map((c) => `• ${c.name}`)
-          .join('\n');
-        return {
-          ok: true,
-          message: {
-            role: 'assistant',
-            content:
-              `I'm CwayClient. On desktop I run real OS actions via tools.\n\n` +
-              `Sample commands:\n${names}\n\n` +
-              `This phone page is a live UI demo — actions are simulated.`
-          },
-          commands: allCommands()
-        };
-      }
-
-      if (/http|open .*github|website|url/.test(lower)) {
-        return {
-          ok: true,
-          message: {
-            role: 'assistant',
-            content:
-              'In desktop mode I would call `open_url` now.\nOn this phone demo I’ll just confirm the intent — UI looks the same.'
-          },
-          trace: [
-            {
-              tool: 'run_command',
-              args: { command_id: 'open_url', args: { url: 'https://github.com' } },
-              result: { ok: true, result: 'Simulated open' }
-            }
-          ],
-          commands: allCommands()
-        };
-      }
-
       return {
         ok: true,
         message: {
           role: 'assistant',
           content:
-            `Got it — “${last.slice(0, 140)}”\n\n` +
-            `You're on the **mobile UI demo**. Chat, command rail, and layouts work here.\n` +
-            `Real shell / files / apps need the desktop CwayClient (Electron).\n\n` +
-            `Try: “Create a command…” or tap a command in the sidebar.`
+            `Got it — “${last.slice(0, 140)}”\n\nPhone demo of the Dexter-style copilot UI. Desktop CwayClient talks to **your Cursor account** and any model you choose.`
         },
-        commands: allCommands()
+        commands: allCommands(),
+        provider: 'cursor-demo'
       };
     }
 
@@ -204,44 +187,20 @@
         commands: allCommands(),
         settings: {
           ...settings,
-          apiKey: settings.apiKey ? '••••••••' : '',
-          hasApiKey: Boolean(settings.apiKey)
+          cursorApiKey: settings.hasCursorKey ? '••••••••' : '',
+          apiKey: settings.apiKey ? '••••••••' : ''
         },
         history
       }),
       getCommands: async () => allCommands(),
       runCommand: async (id, args) => {
-        await sleep(280);
-        const cmd = allCommands().find((c) => c.id === id);
-        if (!cmd) return { ok: false, error: 'Unknown command' };
-        return {
-          ok: true,
-          result: {
-            demo: true,
-            message: `Simulated ${cmd.name}`,
-            args: args || {}
-          }
-        };
+        await sleep(250);
+        return { ok: true, result: { demo: true, id, args } };
       },
       addCommand: async (payload) => {
-        const id = String(payload.id || `custom_${Date.now()}`)
-          .replace(/[^a-z0-9_]/gi, '_')
-          .toLowerCase();
-        if (allCommands().some((c) => c.id === id)) return { ok: false, error: 'Command id already exists' };
-        if (!payload.shell && !payload.url && !payload.path) {
-          return { ok: false, error: 'Provide shell, url, or path' };
-        }
-        const entry = {
-          id,
-          name: payload.name || id,
-          description: payload.description || '',
-          category: payload.category || 'custom',
-          params: payload.params || [],
-          shell: payload.shell,
-          url: payload.url,
-          path: payload.path,
-          builtin: false
-        };
+        const id = String(payload.id || `custom_${Date.now()}`).replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+        if (!payload.shell && !payload.url && !payload.path) return { ok: false, error: 'Provide shell, url, or path' };
+        const entry = { ...payload, id, builtin: false, category: payload.category || 'custom' };
         custom = [...custom, entry];
         saveDemoStore({ customCommands: custom });
         return { ok: true, command: entry, commands: allCommands() };
@@ -253,23 +212,27 @@
       },
       saveSettings: async (partial) => {
         settings = { ...settings, ...partial };
+        if (partial.clearCursorKey) settings.cursorApiKey = '';
         if (partial.clearApiKey) settings.apiKey = '';
-        if (partial.apiKey === '••••••••') {
-          /* keep */
-        }
         saveDemoStore({
+          provider: settings.provider,
+          cursorApiKey: settings.cursorApiKey === '••••••••' ? store.cursorApiKey : settings.cursorApiKey,
           apiKey: settings.apiKey === '••••••••' ? store.apiKey : settings.apiKey,
           baseUrl: settings.baseUrl,
           model: settings.model,
-          confirmShell: settings.confirmShell
+          confirmShell: settings.confirmShell,
+          voiceEnabled: settings.voiceEnabled,
+          workspacePath: settings.workspacePath
         });
-        settings.hasApiKey = Boolean(loadDemoStore().apiKey);
+        const saved = loadDemoStore();
+        settings.hasCursorKey = Boolean(saved.cursorApiKey);
+        settings.hasApiKey = Boolean(saved.apiKey || saved.cursorApiKey);
         return {
           ok: true,
           settings: {
             ...settings,
-            apiKey: settings.hasApiKey ? '••••••••' : '',
-            hasApiKey: settings.hasApiKey
+            cursorApiKey: settings.hasCursorKey ? '••••••••' : '',
+            apiKey: saved.apiKey ? '••••••••' : ''
           }
         };
       },
@@ -278,7 +241,16 @@
         saveDemoStore({ history });
         return { ok: true };
       },
-      chat: demoChat
+      listModels: async () => ({ ok: true, models: DEMO_MODELS }),
+      testCursor: async () => ({
+        ok: Boolean(settings.hasCursorKey),
+        message: settings.hasCursorKey
+          ? 'Demo: key saved locally (real Cursor test needs desktop app)'
+          : 'Add a Cursor API key in Settings (desktop for live connection)',
+        models: DEMO_MODELS
+      }),
+      chat: demoChat,
+      onStatus: () => () => {}
     };
   }
 
@@ -292,9 +264,39 @@
     els.statusLine.textContent = text;
   }
 
+  function setOrb(stateName) {
+    els.orb.dataset.state = stateName || 'idle';
+  }
+
   function openRail(open) {
     els.rail.classList.toggle('open', open);
     document.body.classList.toggle('drawer-open', open);
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  }
+
+  function formatMarkdownLite(text) {
+    return escapeHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>');
+  }
+
+  function speak(text) {
+    if (!state.settings.voiceEnabled || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[*`#_]/g, ' ').slice(0, 500));
+    u.rate = 1.05;
+    setOrb('speaking');
+    u.onend = () => setOrb(state.busy ? 'thinking' : 'idle');
+    u.onerror = () => setOrb('idle');
+    window.speechSynthesis.speak(u);
   }
 
   function renderSuggestions() {
@@ -327,20 +329,41 @@
       btn.addEventListener('click', () => openRunModal(cmd));
       els.cmdList.appendChild(btn);
     });
-    if (!list.length) {
-      const empty = document.createElement('div');
-      empty.className = 'msg system';
-      empty.textContent = 'No commands match';
-      els.cmdList.appendChild(empty);
+  }
+
+  function renderModels(models) {
+    state.models = models || [];
+    const current = state.settings.model || 'auto';
+    const opts = [{ id: 'auto', displayName: 'auto (Cursor default)' }, ...state.models.filter((m) => m.id !== 'auto')];
+    const seen = new Set();
+    els.modelSelect.innerHTML = '';
+    opts.forEach((m) => {
+      if (seen.has(m.id)) return;
+      seen.add(m.id);
+      const o = document.createElement('option');
+      o.value = m.id;
+      o.textContent = m.displayName || m.id;
+      if (m.id === current) o.selected = true;
+      els.modelSelect.appendChild(o);
+    });
+    if (![...els.modelSelect.options].some((o) => o.value === current)) {
+      const o = document.createElement('option');
+      o.value = current;
+      o.textContent = current;
+      o.selected = true;
+      els.modelSelect.appendChild(o);
     }
   }
 
-  function escapeHtml(s) {
-    return String(s)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;');
+  function updateCursorCard() {
+    const connected = Boolean(state.settings.hasCursorKey) && (state.settings.provider || 'cursor') === 'cursor';
+    els.cursorDot.classList.toggle('ok', connected);
+    els.cursorDot.classList.toggle('bad', !connected && state.mode === 'desktop');
+    els.cursorStatus.textContent = connected
+      ? `Linked · model ${state.settings.model || 'auto'}`
+      : state.mode === 'demo'
+        ? 'Demo UI · connect on desktop'
+        : 'Paste Cursor API key in Settings';
   }
 
   function appendMessage(msg) {
@@ -358,13 +381,6 @@
     els.chat.appendChild(div);
     els.chat.scrollTop = els.chat.scrollHeight;
     els.heroStrip.classList.add('collapsed');
-  }
-
-  function formatMarkdownLite(text) {
-    return escapeHtml(text)
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\n/g, '<br>');
   }
 
   function showTyping() {
@@ -407,11 +423,18 @@
     await api.saveHistory(slim);
   }
 
+  async function refreshModels(force = false) {
+    const res = await api.listModels({ force });
+    if (res.ok) renderModels(res.models);
+    return res;
+  }
+
   async function handleSend(text) {
     const content = text.trim();
     if (!content || state.busy) return;
     state.busy = true;
     els.sendBtn.disabled = true;
+    setOrb('thinking');
     setStatus('Thinking…');
 
     const userMsg = { role: 'user', content };
@@ -421,21 +444,20 @@
     autoGrow();
     showTyping();
 
+    const offStatus = api.onStatus?.((s) => setStatus(s));
+
     try {
       const history = state.messages
         .filter((m) => m.role === 'user' || m.role === 'assistant')
         .map((m) => ({ role: m.role, content: m.content }));
-
       const result = await api.chat({ messages: history });
       hideTyping();
 
       if (!result.ok) {
-        const err = {
-          role: 'assistant',
-          content: result.error || 'Something went wrong talking to the model.'
-        };
+        const err = { role: 'assistant', content: result.error || 'Request failed.' };
         state.messages.push(err);
         appendMessage(err);
+        setOrb('idle');
       } else {
         if (result.trace?.length) {
           result.trace.forEach((t) => {
@@ -452,6 +474,8 @@
         }
         state.messages.push(result.message);
         appendMessage(result.message);
+        speak(result.message.content);
+        setOrb(state.settings.voiceEnabled ? 'speaking' : 'idle');
       }
       await persistHistory();
       setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
@@ -461,7 +485,9 @@
       state.messages.push(msg);
       appendMessage(msg);
       setStatus('Error');
+      setOrb('idle');
     } finally {
+      offStatus?.();
       state.busy = false;
       els.sendBtn.disabled = false;
       els.prompt.focus();
@@ -474,47 +500,129 @@
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }
 
+  function setupVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      els.micBtn.title = 'Voice not supported in this browser';
+      return;
+    }
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = navigator.language || 'en-US';
+    let finalText = '';
+
+    rec.onstart = () => {
+      finalText = '';
+      els.micBtn.classList.add('hot');
+      setOrb('listening');
+      setStatus('Listening…');
+    };
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i += 1) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      els.prompt.value = (finalText || interim).trim();
+      autoGrow();
+    };
+    rec.onerror = () => {
+      els.micBtn.classList.remove('hot');
+      setOrb('idle');
+      setStatus('Mic error');
+    };
+    rec.onend = () => {
+      els.micBtn.classList.remove('hot');
+      if (!state.busy) setOrb('idle');
+      const text = els.prompt.value.trim();
+      if (text) handleSend(text);
+      else setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+    };
+    state.recognition = rec;
+
+    const start = (e) => {
+      e.preventDefault();
+      if (state.busy) return;
+      try {
+        rec.start();
+      } catch {
+        /* already started */
+      }
+    };
+    const stop = (e) => {
+      e.preventDefault();
+      try {
+        rec.stop();
+      } catch {
+        /* ignore */
+      }
+    };
+    els.micBtn.addEventListener('mousedown', start);
+    els.micBtn.addEventListener('mouseup', stop);
+    els.micBtn.addEventListener('mouseleave', stop);
+    els.micBtn.addEventListener('touchstart', start, { passive: false });
+    els.micBtn.addEventListener('touchend', stop);
+    els.orbBtn.addEventListener('mousedown', start);
+    els.orbBtn.addEventListener('mouseup', stop);
+    els.orbBtn.addEventListener('touchstart', start, { passive: false });
+    els.orbBtn.addEventListener('touchend', stop);
+  }
+
+  function syncProviderFields() {
+    const p = els.setProvider.value;
+    els.cursorSettings.hidden = p !== 'cursor';
+    els.openaiSettings.hidden = p !== 'openai';
+  }
+
   async function boot() {
     renderSuggestions();
-    const boot = await api.getBootstrap();
-    state.mode = boot.mode || (window.cway ? 'desktop' : 'demo');
-    state.commands = boot.commands || [];
-    state.settings = boot.settings || state.settings;
+    setupVoice();
+    const bootData = await api.getBootstrap();
+    state.mode = bootData.mode || (window.cway ? 'desktop' : 'demo');
+    state.commands = bootData.commands || [];
+    state.settings = { ...state.settings, ...(bootData.settings || {}) };
     state.messages = [];
 
     els.modeBadge.textContent = state.mode === 'demo' ? 'Mobile demo' : 'Desktop';
     els.fineprint.textContent =
       state.mode === 'demo'
-        ? 'Mobile demo · OS actions simulated · layout matches desktop'
-        : `Desktop · ${boot.platform || 'host'} · OS actions enabled`;
+        ? 'Mobile demo · Cursor connection live in desktop app'
+        : `Desktop · Cursor SDK · model ${state.settings.model || 'auto'}`;
     els.heroEyebrow.textContent =
-      state.mode === 'demo' ? 'Demo · phone preview' : 'Online · OS linked';
+      state.mode === 'demo' ? 'Demo · phone preview' : 'Cursor-linked · standing by';
     setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
-
+    updateCursorCard();
     renderCommands();
 
-    (boot.history || []).forEach((m) => {
+    document.getElementById('setProvider').value = state.settings.provider || 'cursor';
+    document.getElementById('setBaseUrl').value = state.settings.baseUrl || '';
+    document.getElementById('setModel').value = state.settings.model || 'auto';
+    document.getElementById('setWorkspace').value = state.settings.workspacePath || '';
+    document.getElementById('setConfirmShell').checked = state.settings.confirmShell !== false;
+    document.getElementById('setVoice').checked = state.settings.voiceEnabled !== false;
+    syncProviderFields();
+
+    await refreshModels(false);
+    updateCursorCard();
+
+    (bootData.history || []).forEach((m) => {
       state.messages.push(m);
       appendMessage(m);
     });
 
-    if (!(boot.history || []).length) {
+    if (!(bootData.history || []).length) {
       appendMessage({
         role: 'system',
         content:
           state.mode === 'demo'
-            ? 'Phone UI demo loaded — try the suggestions or open the command rail.'
-            : 'CwayClient ready. Ask me anything or run a command from the rail.'
+            ? 'Phone UI demo — hold the orb/mic to talk (browser permitting). Connect Cursor on desktop.'
+            : 'Connect Cursor in Settings, pick a model, then talk or type.'
       });
     }
-
-    document.getElementById('setBaseUrl').value = state.settings.baseUrl || '';
-    document.getElementById('setModel').value = state.settings.model || 'gpt-4o';
-    document.getElementById('setApiKey').value = '';
-    document.getElementById('setConfirmShell').checked = state.settings.confirmShell !== false;
   }
 
-  // Events
   els.menuBtn.addEventListener('click', () => openRail(true));
   els.railClose.addEventListener('click', () => openRail(false));
   document.addEventListener('click', (e) => {
@@ -524,12 +632,10 @@
   });
 
   els.cmdFilter.addEventListener('input', () => renderCommands(els.cmdFilter.value));
-
   els.composer.addEventListener('submit', (e) => {
     e.preventDefault();
     handleSend(els.prompt.value);
   });
-
   els.prompt.addEventListener('input', autoGrow);
   els.prompt.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -542,38 +648,73 @@
     state.messages = [];
     els.chat.innerHTML = '';
     els.heroStrip.classList.remove('collapsed');
+    window.speechSynthesis?.cancel();
     await api.saveHistory([]);
-    appendMessage({
-      role: 'system',
-      content: 'Chat cleared.'
-    });
+    appendMessage({ role: 'system', content: 'Chat cleared.' });
   });
 
   els.btnSettings.addEventListener('click', () => {
     openRail(false);
+    syncProviderFields();
     els.settingsModal.showModal();
   });
-
   els.btnAddCommand.addEventListener('click', () => {
     openRail(false);
     els.commandForm.reset();
     els.commandModal.showModal();
+  });
+  els.setProvider.addEventListener('change', syncProviderFields);
+
+  els.modelSelect.addEventListener('change', async () => {
+    const model = els.modelSelect.value;
+    const res = await api.saveSettings({ model });
+    if (res.ok) state.settings = res.settings;
+    document.getElementById('setModel').value = model;
+    updateCursorCard();
+    setStatus(`Model → ${model}`);
+  });
+
+  els.btnRefreshModels.addEventListener('click', async () => {
+    setStatus('Refreshing Cursor models…');
+    const res = await refreshModels(true);
+    setStatus(res.ok ? `${res.models.length} models` : res.error || 'Failed');
+  });
+
+  els.btnTestCursor.addEventListener('click', async () => {
+    setStatus('Testing Cursor…');
+    const res = await api.testCursor();
+    if (res.ok && res.models) renderModels(res.models);
+    updateCursorCard();
+    setStatus(res.message || (res.ok ? 'Connected' : res.error || 'Failed'));
+    appendMessage({
+      role: 'system',
+      content: res.message || res.error || 'Cursor test finished'
+    });
   });
 
   els.settingsForm.addEventListener('submit', async (e) => {
     const submitter = e.submitter;
     if (submitter && submitter.value === 'cancel') return;
     e.preventDefault();
+    const cursorApiKey = document.getElementById('setCursorKey').value.trim();
     const apiKey = document.getElementById('setApiKey').value.trim();
     const payload = {
+      provider: document.getElementById('setProvider').value,
       baseUrl: document.getElementById('setBaseUrl').value.trim() || 'https://api.openai.com/v1',
-      model: document.getElementById('setModel').value.trim() || 'gpt-4o',
-      confirmShell: document.getElementById('setConfirmShell').checked
+      model: document.getElementById('setModel').value.trim() || 'auto',
+      workspacePath: document.getElementById('setWorkspace').value.trim(),
+      confirmShell: document.getElementById('setConfirmShell').checked,
+      voiceEnabled: document.getElementById('setVoice').checked
     };
+    if (cursorApiKey) payload.cursorApiKey = cursorApiKey;
     if (apiKey) payload.apiKey = apiKey;
     const res = await api.saveSettings(payload);
     if (res.ok) state.settings = res.settings;
     els.settingsModal.close();
+    document.getElementById('setCursorKey').value = '';
+    document.getElementById('setApiKey').value = '';
+    updateCursorCard();
+    await refreshModels(true);
     setStatus('Settings saved');
   });
 
@@ -599,10 +740,7 @@
     state.commands = res.commands;
     renderCommands(els.cmdFilter.value);
     els.commandModal.close();
-    appendMessage({
-      role: 'system',
-      content: `Command added: ${payload.name}`
-    });
+    appendMessage({ role: 'system', content: `Command added: ${payload.name}` });
   });
 
   els.runForm.addEventListener('submit', async (e) => {
@@ -617,18 +755,16 @@
     });
     els.runModal.close();
     setStatus(`Running ${cmd.name}…`);
+    setOrb('thinking');
     const res = await api.runCommand(cmd.id, args);
     appendMessage({
       role: 'tool',
       name: cmd.id,
       content: JSON.stringify(res, null, 2).slice(0, 1500)
     });
-    appendMessage({
-      role: 'assistant',
-      content: res.ok
-        ? `Done — ${cmd.name}.`
-        : `Failed — ${res.error || 'unknown error'}`
-    });
+    const reply = res.ok ? `Done — ${cmd.name}.` : `Failed — ${res.error || 'unknown error'}`;
+    appendMessage({ role: 'assistant', content: reply });
+    speak(reply);
     setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
   });
 

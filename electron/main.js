@@ -5,20 +5,36 @@ const os = require('os');
 const { execFile, spawn } = require('child_process');
 const Store = require('electron-store');
 const { runAiTurn } = require('./ai');
+const { CursorBridge, publicSettings } = require('./cursor-bridge');
 
 const store = new Store({
   name: 'cwayclient',
   defaults: {
     settings: {
+      provider: 'cursor',
+      cursorApiKey: '',
       apiKey: '',
       baseUrl: 'https://api.openai.com/v1',
-      model: 'gpt-4o',
+      model: 'auto',
       confirmShell: true,
-      voiceName: ''
+      voiceEnabled: true,
+      voiceName: '',
+      workspacePath: ''
     },
     customCommands: [],
     chatHistory: []
   }
+});
+
+function getSettings() {
+  return store.get('settings');
+}
+
+const cursorBridge = new CursorBridge({
+  getSettings,
+  getCommands: () => getAllCommands(),
+  executeCommand: (id, args) => executeCommand(id, args),
+  addCommand: (payload) => addCustomCommand(payload)
 });
 
 const BUILTIN_COMMANDS = [
@@ -172,6 +188,32 @@ function createWindow() {
 function getAllCommands() {
   const custom = store.get('customCommands') || [];
   return [...BUILTIN_COMMANDS, ...custom];
+}
+
+function addCustomCommand(payload) {
+  const custom = store.get('customCommands') || [];
+  const id = String(payload.id || `custom_${Date.now()}`).replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+  if (getAllCommands().some((c) => c.id === id)) {
+    return { ok: false, error: 'Command id already exists' };
+  }
+  const entry = {
+    id,
+    name: String(payload.name || id),
+    description: String(payload.description || ''),
+    category: String(payload.category || 'custom'),
+    params: Array.isArray(payload.params) ? payload.params : [],
+    shell: payload.shell ? String(payload.shell) : undefined,
+    url: payload.url ? String(payload.url) : undefined,
+    path: payload.path ? String(payload.path) : undefined,
+    cwd: payload.cwd ? String(payload.cwd) : undefined,
+    builtin: false
+  };
+  if (!entry.shell && !entry.url && !entry.path) {
+    return { ok: false, error: 'Provide shell, url, or path for the command' };
+  }
+  custom.push(entry);
+  store.set('customCommands', custom);
+  return { ok: true, command: entry, commands: getAllCommands() };
 }
 
 function expandHome(p) {
@@ -379,11 +421,7 @@ function registerIpc() {
     mode: 'desktop',
     platform: process.platform,
     commands: getAllCommands(),
-    settings: {
-      ...store.get('settings'),
-      apiKey: store.get('settings').apiKey ? '••••••••' : '',
-      hasApiKey: Boolean(store.get('settings').apiKey)
-    },
+    settings: publicSettings(getSettings()),
     history: store.get('chatHistory') || []
   }));
 
@@ -394,31 +432,7 @@ function registerIpc() {
     return executeCommand(id, args || {});
   });
 
-  ipcMain.handle('cway:addCommand', (_e, payload) => {
-    const custom = store.get('customCommands') || [];
-    const id = String(payload.id || `custom_${Date.now()}`).replace(/[^a-z0-9_]/gi, '_').toLowerCase();
-    if (getAllCommands().some((c) => c.id === id)) {
-      return { ok: false, error: 'Command id already exists' };
-    }
-    const entry = {
-      id,
-      name: String(payload.name || id),
-      description: String(payload.description || ''),
-      category: String(payload.category || 'custom'),
-      params: Array.isArray(payload.params) ? payload.params : [],
-      shell: payload.shell ? String(payload.shell) : undefined,
-      url: payload.url ? String(payload.url) : undefined,
-      path: payload.path ? String(payload.path) : undefined,
-      cwd: payload.cwd ? String(payload.cwd) : undefined,
-      builtin: false
-    };
-    if (!entry.shell && !entry.url && !entry.path) {
-      return { ok: false, error: 'Provide shell, url, or path for the command' };
-    }
-    custom.push(entry);
-    store.set('customCommands', custom);
-    return { ok: true, command: entry, commands: getAllCommands() };
-  });
+  ipcMain.handle('cway:addCommand', (_e, payload) => addCustomCommand(payload || {}));
 
   ipcMain.handle('cway:removeCommand', (_e, id) => {
     const custom = (store.get('customCommands') || []).filter((c) => c.id !== id);
@@ -427,20 +441,51 @@ function registerIpc() {
   });
 
   ipcMain.handle('cway:saveSettings', (_e, partial) => {
-    const current = store.get('settings');
+    const current = getSettings();
     const next = { ...current, ...partial };
     if (partial.apiKey === '••••••••' || partial.apiKey === undefined) {
       next.apiKey = current.apiKey;
     }
+    if (partial.cursorApiKey === '••••••••' || partial.cursorApiKey === undefined) {
+      next.cursorApiKey = current.cursorApiKey;
+    }
     if (partial.clearApiKey) next.apiKey = '';
+    if (partial.clearCursorKey) next.cursorApiKey = '';
     store.set('settings', next);
+    if (
+      partial.cursorApiKey ||
+      partial.clearCursorKey ||
+      partial.model ||
+      partial.provider ||
+      partial.workspacePath
+    ) {
+      cursorBridge.reset();
+    }
+    return { ok: true, settings: publicSettings(next) };
+  });
+
+  ipcMain.handle('cway:listModels', async (_e, payload) => {
+    const settings = getSettings();
+    if ((settings.provider || 'cursor') === 'cursor') {
+      return cursorBridge.listModels({ force: Boolean(payload?.force) });
+    }
     return {
       ok: true,
-      settings: {
-        ...next,
-        apiKey: next.apiKey ? '••••••••' : '',
-        hasApiKey: Boolean(next.apiKey)
-      }
+      models: [
+        { id: 'gpt-4o', displayName: 'GPT-4o' },
+        { id: 'gpt-4.1', displayName: 'GPT-4.1' },
+        { id: 'o3-mini', displayName: 'o3-mini' }
+      ]
+    };
+  });
+
+  ipcMain.handle('cway:testCursor', async () => {
+    const listed = await cursorBridge.listModels({ force: true });
+    if (!listed.ok) return listed;
+    return {
+      ok: true,
+      message: `Connected to Cursor · ${listed.models.length} models available`,
+      models: listed.models
     };
   });
 
@@ -449,38 +494,31 @@ function registerIpc() {
     return { ok: true };
   });
 
-  ipcMain.handle('cway:chat', async (_e, payload) => {
-    const settings = store.get('settings');
+  ipcMain.handle('cway:chat', async (event, payload) => {
+    const settings = getSettings();
     const messages = payload?.messages || [];
     const commands = getAllCommands();
+    const provider = settings.provider || 'cursor';
+
+    const sendStatus = (text) => {
+      try {
+        event.sender.send('cway:status', text);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    if (provider === 'cursor') {
+      try {
+        return await cursorBridge.chat({ messages, onStatus: sendStatus });
+      } catch (err) {
+        return { ok: false, error: err.message || String(err), provider: 'cursor' };
+      }
+    }
 
     const tools = {
       run_command: async (args) => executeCommand(args.command_id, args.args || {}),
-      add_command: async (args) => {
-        const custom = store.get('customCommands') || [];
-        const id = String(args.id || `custom_${Date.now()}`).replace(/[^a-z0-9_]/gi, '_').toLowerCase();
-        if (getAllCommands().some((c) => c.id === id)) {
-          return { ok: false, error: 'Command id already exists' };
-        }
-        const entry = {
-          id,
-          name: String(args.name || id),
-          description: String(args.description || ''),
-          category: String(args.category || 'custom'),
-          params: Array.isArray(args.params) ? args.params : [],
-          shell: args.shell ? String(args.shell) : undefined,
-          url: args.url ? String(args.url) : undefined,
-          path: args.path ? String(args.path) : undefined,
-          cwd: args.cwd ? String(args.cwd) : undefined,
-          builtin: false
-        };
-        if (!entry.shell && !entry.url && !entry.path) {
-          return { ok: false, error: 'Provide shell, url, or path' };
-        }
-        custom.push(entry);
-        store.set('customCommands', custom);
-        return { ok: true, command: entry, commands: getAllCommands() };
-      },
+      add_command: async (args) => addCustomCommand(args),
       list_commands: async () => ({ ok: true, commands })
     };
 

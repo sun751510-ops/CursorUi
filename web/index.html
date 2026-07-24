@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#071018" />
-  <meta name="description" content="CwayClient — desktop Jarvis assistant UI demo" />
+  <meta name="description" content="CwayClient — desktop AI copilot powered by your Cursor models" />
   <title>CwayClient</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -27,6 +27,27 @@
           <span id="modeBadge">Desktop</span>
         </div>
         <button class="icon-btn rail-close" id="railClose" aria-label="Close menu">✕</button>
+      </div>
+
+      <div class="rail-block connect-block">
+        <div class="rail-label">Connection</div>
+        <div class="connect-card" id="connectCard">
+          <div class="connect-row">
+            <span class="dot" id="cursorDot"></span>
+            <div>
+              <strong>Cursor</strong>
+              <p id="cursorStatus">Not connected</p>
+            </div>
+          </div>
+          <label class="mini-label">Model</label>
+          <select id="modelSelect" class="model-select">
+            <option value="auto">auto (Cursor default)</option>
+          </select>
+          <div class="connect-actions">
+            <button type="button" class="ghost-btn" id="btnRefreshModels">Refresh models</button>
+            <button type="button" class="ghost-btn" id="btnTestCursor">Test</button>
+          </div>
+        </div>
       </div>
 
       <div class="rail-block">
@@ -56,14 +77,17 @@
       </header>
 
       <section class="hero-strip" id="heroStrip">
-        <div class="orb" aria-hidden="true">
-          <div class="orb-glow"></div>
-          <div class="orb-core"></div>
-        </div>
+        <button type="button" class="orb-btn" id="orbBtn" aria-label="Hold to talk">
+          <div class="orb" id="orb" data-state="idle" aria-hidden="true">
+            <div class="orb-glow"></div>
+            <div class="orb-core"></div>
+            <div class="orb-ring"></div>
+          </div>
+        </button>
         <div class="hero-copy">
           <p class="eyebrow" id="heroEyebrow">Online · ready</p>
-          <h2>What should we do?</h2>
-          <p class="lede">Ask me to open apps, files, URLs, run shell, or invent a new command.</p>
+          <h2>You lead. I handle the rest.</h2>
+          <p class="lede">Voice or type — CwayClient runs OS actions through your Cursor models.</p>
         </div>
       </section>
 
@@ -72,6 +96,7 @@
       <section class="composer-wrap">
         <div class="suggestions" id="suggestions"></div>
         <form class="composer" id="composer">
+          <button type="button" class="mic" id="micBtn" aria-label="Voice input" title="Hold to talk">🎙</button>
           <textarea
             id="prompt"
             rows="1"
@@ -83,7 +108,7 @@
             <span>Send</span>
           </button>
         </form>
-        <p class="fineprint" id="fineprint">Desktop mode · OS actions enabled</p>
+        <p class="fineprint" id="fineprint">Cursor-powered · pick any model in the rail</p>
       </section>
     </main>
   </div>
@@ -94,26 +119,56 @@
         <h3>Settings</h3>
         <button value="cancel" class="icon-btn" aria-label="Close">✕</button>
       </header>
+
       <label>
-        <span>API base URL</span>
-        <input name="baseUrl" id="setBaseUrl" placeholder="https://api.openai.com/v1" />
+        <span>AI provider</span>
+        <select name="provider" id="setProvider">
+          <option value="cursor">Cursor (recommended)</option>
+          <option value="openai">OpenAI-compatible fallback</option>
+        </select>
       </label>
+
+      <div id="cursorSettings">
+        <label>
+          <span>Cursor API key</span>
+          <input name="cursorApiKey" id="setCursorKey" type="password" placeholder="From cursor.com/dashboard/api" />
+        </label>
+        <p class="hint">
+          CwayClient uses the official <strong>@cursor/sdk</strong> so you can pick any model on your Cursor plan
+          (Composer, Claude, GPT, Gemini, etc.).
+        </p>
+      </div>
+
+      <div id="openaiSettings" hidden>
+        <label>
+          <span>API base URL</span>
+          <input name="baseUrl" id="setBaseUrl" placeholder="https://api.openai.com/v1" />
+        </label>
+        <label>
+          <span>API key</span>
+          <input name="apiKey" id="setApiKey" type="password" placeholder="sk-…" />
+        </label>
+      </div>
+
       <label>
-        <span>Model</span>
-        <input name="model" id="setModel" placeholder="gpt-4o" />
+        <span>Model id</span>
+        <input name="model" id="setModel" placeholder="auto" />
       </label>
+
       <label>
-        <span>API key</span>
-        <input name="apiKey" id="setApiKey" type="password" placeholder="sk-… or leave blank for demo AI" />
+        <span>Workspace path (optional)</span>
+        <input name="workspacePath" id="setWorkspace" placeholder="~/ or project folder" />
       </label>
+
       <label class="check">
         <input type="checkbox" id="setConfirmShell" checked />
         <span>Confirm shell commands</span>
       </label>
-      <p class="hint">
-        Recommended models: <strong>gpt-4o</strong> or <strong>claude-sonnet-4</strong> (via OpenRouter / Anthropic-compatible proxy).
-        Tool-calling models work best for command inventing.
-      </p>
+      <label class="check">
+        <input type="checkbox" id="setVoice" checked />
+        <span>Speak replies (TTS)</span>
+      </label>
+
       <footer>
         <button value="cancel" class="ghost-btn">Cancel</button>
         <button value="default" class="primary-btn" id="saveSettings">Save</button>

@@ -1,58 +1,48 @@
 # CwayClient
 
-Desktop Jarvis assistant with a polished webview UI, prebuilt OS commands, and an AI that can run or invent new commands.
+Desktop AI copilot (Dexter / Jarvis-style) with a polished webview UI, real OS commands, voice, and **direct Cursor model access** via the official `@cursor/sdk`.
 
 ## Mobile UI demo (phone)
 
-**Open on your phone now:**  
+**Open on your phone:**  
 https://litter.catbox.moe/3zg2ny.html
 
-Self-contained copy also lives at [`web/phone.html`](web/phone.html).
+(Older snapshot — rebuild `web/phone.html` after UI changes, or use GitHub Pages after merge.)
 
-**GitHub Pages (after merge + Pages enabled):**  
+**GitHub Pages (after merge):**  
 https://sun751510-ops.github.io/CursorUi/
 
-OS actions are simulated in the browser demo. Layout, chat, command rail, and “AI invents a command” all work on phone.
-
-## Desktop app (real OS actions)
+## Desktop (Cursor-powered)
 
 ```bash
 npm install
 npm start
 ```
 
-Requires Node.js 18+. Electron window loads the same UI via secure preload bridge.
+1. Open **Settings**
+2. Provider: **Cursor**
+3. Paste your API key from [cursor.com/dashboard/api](https://cursor.com/dashboard/api)
+4. Click **Test** / **Refresh models** in the left rail
+5. Pick any model on your plan (Composer, Claude, GPT, Gemini, `auto`, …)
 
-### Settings
+CwayClient creates a local Cursor Agent with custom tools (`run_cway_command`, `add_cway_command`, `list_cway_commands`) so the model you choose can control this machine.
 
-Open **Settings** in the app and set:
+## What it feels like
 
-| Field | Recommendation |
-| --- | --- |
-| API base URL | `https://api.openai.com/v1` or OpenRouter `https://openrouter.ai/api/v1` |
-| Model | **`gpt-4o`** (default) or **`anthropic/claude-sonnet-4`** on OpenRouter |
-| API key | Your provider key |
+Inspired by streamer-copilot UIs (e.g. Dexter): reactive orb, hold-to-talk voice, command rail, live status while Cursor thinks/tools run.
 
-**Best model for this project:** a strong **tool-calling** chat model. Prefer **GPT-4o** or **Claude Sonnet 4** — both reliably call `run_command` / `add_command`. Local models work via any OpenAI-compatible proxy, but cloud tool-calling models feel more Jarvis-like.
+## Prebuilt OS commands
 
-## What it can do
+Open URL/path/app, list/read/write files, shell (with confirm), clipboard, notify, system info, home folder — plus AI-invented custom commands.
 
-**Prebuilt commands:** open URL, open/reveal path, list/read/write files, run shell (with confirm), open app, system info, clipboard, notify, open home.
+## Fallback
 
-**AI tools:** `list_commands`, `run_command`, `add_command` (persist custom shell/url/path commands with `{{param}}` templates).
+Settings → provider **OpenAI-compatible** still works with any `/v1/chat/completions` endpoint if you are not using Cursor.
 
-## Project layout
+## Layout
 
 ```
-electron/     main process, preload, AI tool loop
-web/          UI (also the mobile demo)
-legacy/       previous Macro Studio single-file UI
+electron/   main, preload, Cursor bridge, OS executors
+web/        UI (desktop + mobile demo)
+legacy/     previous Macro Studio
 ```
-
-## Local demo server
-
-```bash
-npm run demo
-```
-
-Then open the printed localhost URL on your phone if you’re on the same network.
