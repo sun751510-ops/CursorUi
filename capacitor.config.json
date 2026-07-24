@@ -1,0 +1,30 @@
+{
+  "appId": "com.cway.client",
+  "appName": "CwayClient",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#071018",
+      "showSpinner": false
+    },
+    "SpeechRecognition": {
+      "language": "en-US",
+      "maxResults": 3,
+      "prompt": "Speak to CwayClient",
+      "popup": false,
+      "partialResults": true
+    }
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#071018"
+  }
+}

@@ -501,34 +501,15 @@
   }
 
   function setupVoice() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const secure = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
     state.listening = false;
-    state.voiceSupported = Boolean(SR) && secure;
-
-    if (!SR) {
-      els.micBtn.title = 'Voice not supported here — type instead';
-      els.micBtn.classList.add('disabled');
-      els.orbBtn.title = 'Voice not supported here — type instead';
-      return;
-    }
-    if (!secure) {
-      els.micBtn.title = 'Voice needs HTTPS';
-      els.micBtn.classList.add('disabled');
-      return;
-    }
-
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = true;
-    rec.lang = navigator.language || 'en-US';
-    rec.maxAlternatives = 1;
-    let finalText = '';
-    let hadResult = false;
-    let ignoreErrors = false;
-
     const idleStatus = () =>
-      setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+      setStatus(
+        window.CwayNative?.isNative?.()
+          ? 'App mode · standing by'
+          : state.mode === 'demo'
+            ? 'Demo mode · UI preview'
+            : 'Standing by'
+      );
 
     const setListeningUi = (on) => {
       state.listening = on;
@@ -541,6 +522,119 @@
         setOrb('idle');
       }
     };
+
+    // Prefer native Capacitor speech inside the real mobile app WebView
+    if (window.CwayNative?.isNative?.()) {
+      let finalText = '';
+      let hadResult = false;
+      let removePartial = null;
+      let removeListening = null;
+
+      async function toggleNative(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (state.busy) return;
+
+        if (state.listening) {
+          await window.CwayNative.speech.stop();
+          setListeningUi(false);
+          const text = (finalText || els.prompt.value).trim();
+          if (text && hadResult) handleSend(text);
+          else idleStatus();
+          return;
+        }
+
+        const available = await window.CwayNative.speech.available();
+        if (!available) {
+          setStatus('Speech not available on this device — type instead');
+          return;
+        }
+        const permitted = await window.CwayNative.speech.requestPermissions();
+        if (!permitted) {
+          setStatus('Allow mic + speech in phone Settings → CwayClient');
+          return;
+        }
+
+        finalText = '';
+        hadResult = false;
+        removePartial?.();
+        removeListening?.();
+        removePartial = await window.CwayNative.speech.addPartialListener((text) => {
+          if (!text) return;
+          hadResult = true;
+          finalText = text;
+          els.prompt.value = text;
+          autoGrow();
+        });
+        removeListening = await window.CwayNative.speech.addListeningListener((status) => {
+          if (status === 'stopped') {
+            setListeningUi(false);
+            const text = (finalText || els.prompt.value).trim();
+            if (!state.busy && text && hadResult) handleSend(text);
+            else if (!state.busy) idleStatus();
+          }
+        });
+
+        try {
+          setListeningUi(true);
+          const result = await window.CwayNative.speech.start();
+          const match = result?.matches?.[0];
+          if (match) {
+            hadResult = true;
+            finalText = match;
+            els.prompt.value = match;
+            autoGrow();
+          }
+          // iOS often resolves start() when utterance finishes
+          if (!state.listening) return;
+          setListeningUi(false);
+          const text = (finalText || els.prompt.value).trim();
+          if (text && hadResult) handleSend(text);
+          else idleStatus();
+        } catch (err) {
+          setListeningUi(false);
+          setStatus(err?.message || 'Native mic failed — type instead');
+        }
+      }
+
+      els.micBtn.title = 'Tap to talk (native app mic)';
+      els.orbBtn.title = 'Tap to talk (native app mic)';
+      els.micBtn.classList.remove('disabled');
+      els.micBtn.addEventListener('click', toggleNative);
+      els.orbBtn.addEventListener('click', toggleNative);
+      state.voiceSupported = true;
+      return;
+    }
+
+    // Browser / PWA fallback
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const secure = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+    state.voiceSupported = Boolean(SR) && secure;
+
+    if (!SR || !secure) {
+      els.micBtn.title = 'Install the mobile app for working voice — or type here';
+      els.micBtn.classList.add('disabled');
+      els.orbBtn.title = 'Install the mobile app for working voice — or type here';
+      els.micBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        setStatus('Browser mic is blocked here — use the CwayClient app');
+        appendMessage({
+          role: 'system',
+          content:
+            'Website mic is unreliable. Install the **CwayClient mobile app** (Capacitor) for a real WebView + native microphone.'
+        });
+      });
+      return;
+    }
+
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = navigator.language || 'en-US';
+    rec.maxAlternatives = 1;
+    let finalText = '';
+    let hadResult = false;
+    let ignoreErrors = false;
 
     rec.onstart = () => {
       finalText = '';
@@ -561,22 +655,13 @@
     };
     rec.onerror = (e) => {
       const code = e?.error || 'unknown';
-      // Normal when user stops early / silence — not a hard failure
       if (code === 'aborted' || code === 'no-speech' || ignoreErrors) {
         setListeningUi(false);
         if (!hadResult) idleStatus();
         return;
       }
       setListeningUi(false);
-      const tips = {
-        'not-allowed': 'Mic blocked — allow microphone in browser settings',
-        'service-not-allowed': 'Voice blocked on this browser/site — type instead',
-        network: 'Voice service unavailable — type instead',
-        'audio-capture': 'No microphone found',
-        'bad-grammar': 'Voice engine glitch — try again',
-        'language-not-supported': 'Language not supported — type instead'
-      };
-      setStatus(tips[code] || `Voice unavailable (${code}) — type instead`);
+      setStatus('Browser mic blocked — install the mobile app for voice');
     };
     rec.onend = () => {
       setListeningUi(false);
@@ -591,23 +676,10 @@
     };
     state.recognition = rec;
 
-    async function ensureMicPermission() {
-      if (!navigator.mediaDevices?.getUserMedia) return true;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach((t) => t.stop());
-        return true;
-      } catch {
-        setStatus('Mic blocked — allow microphone, or just type');
-        return false;
-      }
-    }
-
     async function toggleListen(e) {
       e.preventDefault();
       e.stopPropagation();
       if (state.busy) return;
-
       if (state.listening) {
         ignoreErrors = true;
         try {
@@ -620,15 +692,12 @@
         }, 300);
         return;
       }
-
-      const ok = await ensureMicPermission();
-      if (!ok) return;
       try {
         finalText = '';
         hadResult = false;
         rec.start();
-      } catch (err) {
-        setStatus('Mic busy — tap again in a second');
+      } catch {
+        setStatus('Mic busy — tap again');
         setListeningUi(false);
       }
     }
@@ -698,23 +767,36 @@
   }
 
   async function boot() {
+    const isNativeApp = Boolean(window.CwayNative?.isNative?.());
+    if (isNativeApp) {
+      await window.CwayNative.ready();
+      document.getElementById('installBanner')?.classList.remove('show');
+    }
+
     renderSuggestions();
     setupVoice();
-    setupInstallPrompt();
+    if (!isNativeApp) setupInstallPrompt();
     const bootData = await api.getBootstrap();
-    state.mode = bootData.mode || (window.cway ? 'desktop' : 'demo');
+    state.mode = isNativeApp ? 'app' : bootData.mode || (window.cway ? 'desktop' : 'demo');
     state.commands = bootData.commands || [];
     state.settings = { ...state.settings, ...(bootData.settings || {}) };
     state.messages = [];
 
-    els.modeBadge.textContent = state.mode === 'demo' ? 'Mobile demo' : 'Desktop';
-    els.fineprint.textContent =
-      state.mode === 'demo'
-        ? 'Mobile demo · Cursor connection live in desktop app'
-        : `Desktop · Cursor SDK · model ${state.settings.model || 'auto'}`;
-    els.heroEyebrow.textContent =
-      state.mode === 'demo' ? 'Demo · phone preview' : 'Cursor-linked · standing by';
-    setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+    if (isNativeApp) {
+      els.modeBadge.textContent = `App · ${window.CwayNative.platform()}`;
+      els.fineprint.textContent = 'Native WebView app · mic uses device speech APIs';
+      els.heroEyebrow.textContent = 'App mode · microphone ready';
+      setStatus('App mode · standing by');
+    } else {
+      els.modeBadge.textContent = state.mode === 'demo' ? 'Mobile demo' : 'Desktop';
+      els.fineprint.textContent =
+        state.mode === 'demo'
+          ? 'Website demo · for working mic install the mobile app'
+          : `Desktop · Cursor SDK · model ${state.settings.model || 'auto'}`;
+      els.heroEyebrow.textContent =
+        state.mode === 'demo' ? 'Demo · phone preview' : 'Cursor-linked · standing by';
+      setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+    }
     updateCursorCard();
     renderCommands();
 

@@ -5,3 +5,15 @@ release/
 *.log
 .DS_Store
 .electron-store/
+
+# Native mobile build junk
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+*.iml
+.idea/
