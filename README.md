@@ -1,44 +1,42 @@
 # CwayClient
 
-Dexter / Jarvis-style AI copilot UI with voice, Cursor desktop integration, and an iPhone home-screen app (no Mac required).
+Dexter / Jarvis-style AI copilot — iPhone Home Screen app + desktop Electron with Cursor models.
 
-## iPhone only (no Mac)
+## iPhone: voice → your Cursor AI (no OpenAI Whisper key)
 
-Apple will not let us put a true App Store build on your phone without a Mac + Apple Developer account.  
-On a standalone iPhone, CwayClient installs as a **Home Screen app** (Safari WebView shell):
+**Demo:** https://litter.catbox.moe/kzu1me.html  
 
-1. Open in **Safari** (not TikTok / Instagram / Chrome in-app browser):  
-   https://litter.catbox.moe/wawfxt.html
-2. Tap **Share** (square with ↑ at the bottom)
-3. Tap **Add to Home Screen** → **Add**
-4. Launch **CwayClient** from your home screen (looks like a normal app)
-5. **Voice on iPhone:** Settings → provider **OpenAI-compatible** → paste an [OpenAI API key](https://platform.openai.com/api-keys)  
-   Mic recording uses Safari; speech-to-text uses Whisper. Typing always works without a key.
+1. Open in **Safari** → Share → **Add to Home Screen**
+2. Mic uses **on-device speech** (no Whisper / OpenAI key)
+3. Replies use **your Cursor API key** + chosen model
 
-If iOS says mic is blocked: **Settings → Safari → Microphone → Allow**, or **Settings → CwayClient → Microphone**.
+### One-time Cursor proxy (required on iPhone)
+Safari blocks calling Cursor’s API directly, so deploy the included proxy:
 
-## Desktop (Cursor models + real OS actions)
+1. Go to [vercel.com](https://vercel.com) → **Add New Project** → import `sun751510-ops/CursorUi`
+2. Deploy
+3. In CwayClient **Settings**:
+   - Provider: **Cursor**
+   - Cursor API key: from https://cursor.com/dashboard/api  
+   - Proxy URL: `https://YOUR-PROJECT.vercel.app/api/cursor`
+4. Tap **Test**, pick a model, then talk or type
+
+Flow: **You speak → phone speech-to-text → Cursor Cloud Agent (your model) → reply (spoken)**
+
+## Desktop
 
 ```bash
 npm install
 npm start
 ```
 
-Settings → Cursor API key from https://cursor.com/dashboard/api → pick any model.
-
-## Android / iOS native (needs a computer)
-
-```bash
-npm run mobile:sync
-npm run mobile:android   # Android Studio
-npm run mobile:ios       # Xcode on a Mac
-```
+Uses `@cursor/sdk` locally — no Vercel proxy needed.
 
 ## Layout
 
 ```
-web/        UI (iPhone Home Screen app + desktop UI)
-electron/   desktop + Cursor SDK + OS commands
-android/    Capacitor Android (optional)
-ios/        Capacitor iOS (needs Mac)
+web/        phone + desktop UI
+api/        Vercel Cursor CORS proxy
+electron/   desktop app + OS commands
+android/ ios/   optional Capacitor shells
 ```
