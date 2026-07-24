@@ -37,6 +37,7 @@
   ];
 
   const els = {
+    app: document.getElementById('app'),
     rail: document.getElementById('rail'),
     menuBtn: document.getElementById('menuBtn'),
     railClose: document.getElementById('railClose'),
@@ -373,20 +374,54 @@
         : 'Paste Cursor API key in Settings';
   }
 
-  function appendMessage(msg) {
+  function lockViewport() {
+    const apply = () => {
+      const vv = window.visualViewport;
+      const h = Math.round(vv?.height || window.innerHeight || document.documentElement.clientHeight || 0);
+      if (!h) return;
+      document.documentElement.style.setProperty('--vvh', `${h}px`);
+      // Keep fixed app pinned to the visual viewport (iOS Safari)
+      if (document.body.classList.contains('is-phone') && els.app) {
+        const top = Math.round(vv?.offsetTop || 0);
+        els.app.style.top = `${top}px`;
+        els.app.style.height = `${h}px`;
+      }
+    };
+    apply();
+    if (!lockViewport._bound) {
+      lockViewport._bound = true;
+      window.visualViewport?.addEventListener('resize', apply);
+      window.visualViewport?.addEventListener('scroll', apply);
+      window.addEventListener('resize', apply);
+      window.addEventListener('orientationchange', () => setTimeout(apply, 150));
+    }
+  }
+
+  function appendMessage(msg, opts = {}) {
     const div = document.createElement('div');
     div.className = `msg ${msg.role}`;
+    let content = msg.content || '';
+    // Keep phone DOM light — huge past dumps break the layout
+    if (document.body.classList.contains('is-phone') && content.length > 1200) {
+      content = `${content.slice(0, 1200)}…`;
+    }
     if (msg.role === 'assistant') {
-      div.innerHTML = `<span class="meta">CwayClient</span>${formatMarkdownLite(msg.content)}`;
+      div.innerHTML = `<span class="meta">CwayClient</span>${formatMarkdownLite(content)}`;
     } else if (msg.role === 'user') {
-      div.textContent = msg.content;
+      div.textContent = content;
     } else if (msg.role === 'tool') {
-      div.innerHTML = `<span class="meta">tool · ${escapeHtml(msg.name || 'action')}</span>${escapeHtml(msg.content)}`;
+      if (document.body.classList.contains('is-phone')) return; // skip tool dumps on phone
+      div.innerHTML = `<span class="meta">tool · ${escapeHtml(msg.name || 'action')}</span>${escapeHtml(content)}`;
     } else {
-      div.textContent = msg.content;
+      div.textContent = content;
     }
     els.chat.appendChild(div);
-    els.chat.scrollTop = els.chat.scrollHeight;
+    if (!opts.skipScroll) {
+      requestAnimationFrame(() => {
+        els.chat.scrollTop = els.chat.scrollHeight;
+        lockViewport();
+      });
+    }
     els.heroStrip.classList.add('collapsed');
   }
 
@@ -424,9 +459,16 @@
   }
 
   async function persistHistory() {
-    const slim = state.messages
+    let slim = state.messages
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({ role: m.role, content: m.content }));
+      .map((m) => ({ role: m.role, content: String(m.content || '') }));
+    if (document.body.classList.contains('is-phone')) {
+      slim = slim
+        .map((m) => ({ ...m, content: m.content.slice(0, 500) }))
+        .slice(-4);
+    } else {
+      slim = slim.slice(-80);
+    }
     await api.saveHistory(slim);
   }
 
@@ -931,6 +973,7 @@
     if (isPhone) {
       document.body.classList.add('is-phone');
       els.heroStrip.classList.add('collapsed');
+      lockViewport();
     }
 
     renderSuggestions();
@@ -971,19 +1014,50 @@
     await refreshModels(false);
     updateCursorCard();
 
-    (bootData.history || []).forEach((m) => {
-      state.messages.push(m);
-      appendMessage(m);
-    });
+    // Phone: past chats were breaking the layout — start clean / keep history tiny
+    let history = Array.isArray(bootData.history) ? bootData.history : [];
+    if (isPhone) {
+      const slim = history
+        .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
+        .map((m) => ({
+          role: m.role,
+          content: String(m.content || '').slice(0, 500)
+        }))
+        .slice(-4);
+      const tooHeavy =
+        history.length > 8 ||
+        history.some((m) => String(m?.content || '').length > 1500);
+      if (tooHeavy || localStorage.getItem('cway-phone-fresh') !== '1') {
+        history = [];
+        state.messages = [];
+        await api.saveHistory([]);
+        localStorage.setItem('cway-phone-fresh', '1');
+      } else {
+        history = slim;
+        if (slim.length !== (bootData.history || []).length) {
+          await api.saveHistory(slim);
+        }
+      }
+    }
 
-    if (!(bootData.history || []).length) {
+    history.forEach((m) => {
+      state.messages.push(m);
+      appendMessage(m, { skipScroll: true });
+    });
+    if (history.length) {
+      requestAnimationFrame(() => {
+        els.chat.scrollTop = els.chat.scrollHeight;
+        lockViewport();
+      });
+    }
+
+    if (!history.length) {
       if (isNativeApp) {
         appendMessage({
           role: 'system',
           content:
-            'CwayClient app ready. Tap the orb/mic and allow Microphone + Speech when prompted. Type anytime if you prefer.'
+            'CwayClient app ready. Tap the mic or type below.'
         });
-        // Ask for native speech permission once on first launch
         if (!localStorage.getItem('cway-native-perm-asked')) {
           localStorage.setItem('cway-native-perm-asked', '1');
           window.CwayNative.speech
@@ -996,12 +1070,19 @@
       } else {
         appendMessage({
           role: 'system',
-          content:
-            state.mode === 'demo'
-              ? 'Website demo (mic often blocked). For a real app with working voice, install the Android/iOS build from the repo README.'
+          content: isPhone
+            ? 'Ready — type a message below. Tap Clear anytime to reset chat.'
+            : state.mode === 'demo'
+              ? 'Website demo (mic often blocked). Type to chat.'
               : 'Connect Cursor in Settings, pick a model, then talk or type.'
         });
       }
+    }
+
+    if (isPhone) {
+      lockViewport();
+      setTimeout(lockViewport, 50);
+      setTimeout(lockViewport, 300);
     }
   }
 
