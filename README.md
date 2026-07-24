@@ -8,7 +8,7 @@ Apple will not let us put a true App Store build on your phone without a Mac + A
 On a standalone iPhone, CwayClient installs as a **Home Screen app** (Safari WebView shell):
 
 1. Open in **Safari** (not TikTok / Instagram / Chrome in-app browser):  
-   https://litter.catbox.moe/… *(latest link in PR)* or GitHub Pages after deploy
+   https://litter.catbox.moe/wawfxt.html
 2. Tap **Share** (square with ↑ at the bottom)
 3. Tap **Add to Home Screen** → **Add**
 4. Launch **CwayClient** from your home screen (looks like a normal app)
