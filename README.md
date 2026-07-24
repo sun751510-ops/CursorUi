@@ -6,25 +6,31 @@ Dexter / Jarvis-style AI copilot — iPhone Home Screen UI + desktop Electron wi
 
 Safari can’t call Cursor’s API directly (CORS). A free **Cloudflare Worker** bridges that — no Vercel, no PC.
 
-### 1. Deploy the Worker (works from your phone)
-1. Open [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Worker**
-2. Paste the contents of [`cloudflare/worker.js`](cloudflare/worker.js)
-3. **Deploy** → copy your URL (`https://….workers.dev`)
+### Live Worker (already deployed)
 
-Or from a computer:
+**Proxy URL:** https://cwayclient-cursor-proxy.tame-fly.workers.dev  
+
+**Claim into your Cloudflare account (required — do this within 1 hour or the preview expires):**  
+https://dash.cloudflare.com/claim-preview?claimToken=QZzFiIxwjVPuhloTft5zM2etmoUaVABtq6zv8wo_Vd8  
+
+Open that claim link on your phone → sign in / create a free Cloudflare account → keep the Worker.
+
+### On your iPhone
+1. Open the CwayClient phone UI in **Safari** → Share → **Add to Home Screen**  
+   https://cdn.jsdelivr.net/gh/sun751510-ops/CursorUi@cursor/cwayclient-jarvis-2fc8/web/phone.html
+2. Settings → **Proxy URL** = `https://cwayclient-cursor-proxy.tame-fly.workers.dev`
+3. Paste your [Cursor API key](https://cursor.com/dashboard/api)
+4. Tap **Test** → mic or type
+
+Flow: **iPhone mic → speech-to-text → Cloudflare Worker → Cursor Cloud Agents → reply**
+
+To redeploy later:
 ```bash
 cd cloudflare
 npx wrangler login
 npx wrangler deploy
 ```
 
-### 2. On your iPhone
-1. Open the CwayClient phone UI in **Safari** → Share → **Add to Home Screen**
-2. Settings → **Proxy URL** = your `https://….workers.dev`
-3. Paste your [Cursor API key](https://cursor.com/dashboard/api)
-4. Tap **Test** → mic or type
-
-Flow: **iPhone mic → speech-to-text → Cloudflare Worker → Cursor Cloud Agents → reply**
 
 ## iPhone at home (Wi‑Fi relay)
 
