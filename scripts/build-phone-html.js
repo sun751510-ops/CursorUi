@@ -31,3 +31,9 @@ if (html.includes('href="styles.css"') || html.includes('src="app.js"')) {
 
 fs.writeFileSync(path.join(web, 'phone.html'), html);
 console.log('Wrote web/phone.html');
+
+// Cloudflare Worker static site (correct text/html Content-Type)
+const publicDir = path.join(root, 'cloudflare', 'public');
+fs.mkdirSync(publicDir, { recursive: true });
+fs.writeFileSync(path.join(publicDir, 'index.html'), html);
+console.log('Wrote cloudflare/public/index.html');

@@ -1,9 +1,13 @@
-# Live Worker (temporary preview)
+# Live app (open in Safari — not GitHub)
 
-**Proxy URL (paste into iPhone Settings):**  
-https://cwayclient-cursor-proxy.tame-fly.workers.dev
+**Open this URL (the real app page):**  
+https://cwayclient-cursor-proxy.bubbly-euphonium.workers.dev
 
-**Claim this Worker into your Cloudflare account (do this within 1 hour or it expires):**  
-https://dash.cloudflare.com/claim-preview?claimToken=QZzFiIxwjVPuhloTft5zM2etmoUaVABtq6zv8wo_Vd8
+If you briefly see “Just a moment…”, wait — then CwayClient loads.
 
-After claiming, the same `*.workers.dev` URL keeps working on your account.
+**Proxy URL** (auto-filled when you open the Worker): same as above.
+
+**Claim into your Cloudflare account within 1 hour:**  
+https://dash.cloudflare.com/claim-preview?claimToken=saIfxeNwGAzVadbMGhtfhn0_cnxb0G1CVCJQhPKWzms
+
+Do **not** open the GitHub / jsDelivr `.html` file link — Safari shows source code there (`text/plain`).

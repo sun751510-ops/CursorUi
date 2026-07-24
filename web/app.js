@@ -118,19 +118,27 @@
   function createDemoBridge() {
     const store = loadDemoStore();
     let custom = store.customCommands || [];
+    const defaultProxy =
+      store.proxyUrl ||
+      (typeof location !== 'undefined' && /\.workers\.dev$/i.test(location.hostname)
+        ? location.origin
+        : '');
     let settings = {
       provider: store.provider || 'cursor',
       cursorApiKey: store.cursorApiKey || '',
       apiKey: store.apiKey || '',
       baseUrl: store.baseUrl || 'https://api.openai.com/v1',
       model: store.model || 'auto',
-      proxyUrl: store.proxyUrl || '',
+      proxyUrl: defaultProxy,
       confirmShell: store.confirmShell !== false,
       voiceEnabled: store.voiceEnabled !== false,
       workspacePath: store.workspacePath || '',
       hasCursorKey: Boolean(store.cursorApiKey),
       hasApiKey: Boolean(store.apiKey || store.cursorApiKey)
     };
+    if (defaultProxy && !store.proxyUrl) {
+      saveDemoStore({ proxyUrl: defaultProxy });
+    }
     let history = store.history || [];
     let agentId = store.cursorAgentId || '';
     const allCommands = () => [...DEMO_BUILTINS, ...custom];

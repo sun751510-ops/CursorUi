@@ -6,21 +6,20 @@ Dexter / Jarvis-style AI copilot — iPhone Home Screen UI + desktop Electron wi
 
 Safari can’t call Cursor’s API directly (CORS). A free **Cloudflare Worker** bridges that — no Vercel, no PC.
 
-### Live Worker (already deployed)
+### Live app (already deployed)
 
-**Proxy URL:** https://cwayclient-cursor-proxy.tame-fly.workers.dev  
+**Open this in Safari** (real webpage — not GitHub source):  
+https://cwayclient-cursor-proxy.bubbly-euphonium.workers.dev  
 
-**Claim into your Cloudflare account (required — do this within 1 hour or the preview expires):**  
-https://dash.cloudflare.com/claim-preview?claimToken=QZzFiIxwjVPuhloTft5zM2etmoUaVABtq6zv8wo_Vd8  
+If you see “Just a moment…”, wait a second — then CwayClient appears.  
+Share → **Add to Home Screen**. Proxy URL is auto-filled to this same site.
 
-Open that claim link on your phone → sign in / create a free Cloudflare account → keep the Worker.
+**Claim into your Cloudflare account within 1 hour** (or the preview expires):  
+https://dash.cloudflare.com/claim-preview?claimToken=saIfxeNwGAzVadbMGhtfhn0_cnxb0G1CVCJQhPKWzms  
 
-### On your iPhone
-1. Open the CwayClient phone UI in **Safari** → Share → **Add to Home Screen**  
-   https://cdn.jsdelivr.net/gh/sun751510-ops/CursorUi@cursor/cwayclient-jarvis-2fc8/web/phone.html
-2. Settings → **Proxy URL** = `https://cwayclient-cursor-proxy.tame-fly.workers.dev`
-3. Paste your [Cursor API key](https://cursor.com/dashboard/api)
-4. Tap **Test** → mic or type
+Then paste your [Cursor API key](https://cursor.com/dashboard/api) → **Test** → mic / type.
+
+> Don’t open the GitHub/jsDelivr `.html` link — Safari shows the code (`text/plain`).
 
 Flow: **iPhone mic → speech-to-text → Cloudflare Worker → Cursor Cloud Agents → reply**
 

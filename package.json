@@ -10,6 +10,7 @@
     "dev": "electron . --dev",
     "demo": "npx --yes serve -l 4173 web",
     "build:phone": "node scripts/build-phone-html.js",
+    "build:worker": "node scripts/build-phone-html.js && node scripts/build-worker.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
