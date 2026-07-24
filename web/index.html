@@ -87,12 +87,13 @@
           <p id="statusLine">Standing by</p>
         </div>
         <div class="top-actions">
+          <button class="icon-btn mobile-only" id="btnSettingsTop" aria-label="Settings" title="Settings">⚙</button>
           <button class="chip" id="btnClearChat" title="Clear chat">Clear</button>
         </div>
       </header>
 
       <section class="hero-strip" id="heroStrip">
-        <button type="button" class="orb-btn" id="orbBtn" aria-label="Hold to talk">
+        <button type="button" class="orb-btn" id="orbBtn" aria-label="Tap to talk">
           <div class="orb" id="orb" data-state="idle" aria-hidden="true">
             <div class="orb-glow"></div>
             <div class="orb-core"></div>
@@ -102,7 +103,8 @@
         <div class="hero-copy">
           <p class="eyebrow" id="heroEyebrow">Online · ready</p>
           <h2>You lead. I handle the rest.</h2>
-          <p class="lede">Voice or type — CwayClient runs OS actions through your Cursor models.</p>
+          <p class="lede desktop-copy">Voice or type — CwayClient runs OS actions through your Cursor models.</p>
+          <p class="lede mobile-copy">Tap the orb or type below.</p>
         </div>
       </section>
 
@@ -111,16 +113,18 @@
       <section class="composer-wrap">
         <div class="suggestions" id="suggestions"></div>
         <form class="composer" id="composer">
-          <button type="button" class="mic" id="micBtn" aria-label="Voice input" title="Hold to talk">🎙</button>
+          <button type="button" class="mic" id="micBtn" aria-label="Voice input" title="Tap to talk">🎙</button>
           <textarea
             id="prompt"
             rows="1"
-            placeholder="Tell CwayClient what to do…"
+            placeholder="Message CwayClient…"
             enterkeyhint="send"
             autocomplete="off"
+            autocapitalize="sentences"
           ></textarea>
           <button type="submit" class="send" id="sendBtn" aria-label="Send">
-            <span>Send</span>
+            <span class="send-label">Send</span>
+            <span class="send-icon" aria-hidden="true">↑</span>
           </button>
         </form>
         <p class="fineprint" id="fineprint">Cursor-powered · pick any model in the rail</p>

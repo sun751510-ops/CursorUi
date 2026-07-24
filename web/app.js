@@ -6,6 +6,11 @@
     'Open https://github.com',
     'Create a command to open Downloads'
   ];
+  const SUGGESTIONS_MOBILE = [
+    'What can you do?',
+    'Help me get started',
+    'Show system info'
+  ];
 
   const DEMO_MODELS = [
     { id: 'auto', displayName: 'auto (Cursor default)' },
@@ -301,14 +306,16 @@
 
   function renderSuggestions() {
     els.suggestions.innerHTML = '';
-    SUGGESTIONS.forEach((text) => {
+    const mobile = window.matchMedia('(max-width: 900px)').matches;
+    const list = mobile ? SUGGESTIONS_MOBILE : SUGGESTIONS;
+    list.forEach((text) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = text;
       b.addEventListener('click', () => {
         els.prompt.value = text;
-        els.prompt.focus();
         autoGrow();
+        handleSend(text);
       });
       els.suggestions.appendChild(b);
     });
@@ -1021,11 +1028,13 @@
     appendMessage({ role: 'system', content: 'Chat cleared.' });
   });
 
-  els.btnSettings.addEventListener('click', () => {
+  function openSettings() {
     openRail(false);
     syncProviderFields();
     els.settingsModal.showModal();
-  });
+  }
+  els.btnSettings.addEventListener('click', openSettings);
+  document.getElementById('btnSettingsTop')?.addEventListener('click', openSettings);
   els.btnAddCommand.addEventListener('click', () => {
     openRail(false);
     els.commandForm.reset();

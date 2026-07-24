@@ -641,36 +641,280 @@ label input:focus,
   40% { transform: translateY(-4px); opacity: 1; }
 }
 
+.mobile-only { display: none !important; }
+.mobile-copy { display: none; }
+.desktop-copy { display: block; }
+.send-icon { display: none; }
+
 @media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; }
+  html, body {
+    height: 100%;
+    height: 100dvh;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    overflow: hidden;
+    padding:
+      env(safe-area-inset-top, 0)
+      env(safe-area-inset-right, 0)
+      0
+      env(safe-area-inset-left, 0);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .app {
+    grid-template-columns: 1fr;
+    height: 100dvh;
+    height: 100svh;
+  }
+
+  .stage {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+
   .rail {
     position: fixed;
-    inset: 0 auto 0 0;
-    width: min(320px, 88vw);
-    z-index: 20;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(340px, 86vw);
+    max-width: 100%;
+    z-index: 30;
     transform: translateX(-105%);
     transition: transform 0.28s ease;
     box-shadow: var(--shadow);
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    background: rgba(6, 12, 18, 0.96);
   }
   .rail.open { transform: none; }
-  .rail-close { display: inline-grid; }
-  .menu-btn { display: inline-grid; }
-  .hero-strip { padding: 16px 16px 4px; gap: 14px; }
-  .orb { width: 58px; height: 58px; }
-  .chat { padding: 6px 14px 14px; }
-  .topbar { padding: 12px 14px; }
+  .rail-close { display: inline-grid; width: 44px; height: 44px; }
+  .menu-btn { display: inline-grid; width: 44px; height: 44px; font-size: 1.15rem; }
+  .mobile-only { display: inline-grid !important; }
+  .desktop-copy { display: none; }
+  .mobile-copy { display: block; }
+
+  .topbar {
+    padding: 10px 12px;
+    padding-top: max(10px, env(safe-area-inset-top, 0px));
+    gap: 10px;
+    min-height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .top-title h1 { font-size: 1.05rem; }
+  .top-title p {
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 52vw;
+  }
+  .chip {
+    min-height: 36px;
+    padding: 8px 12px;
+  }
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+
+  .hero-strip {
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 16px 8px;
+    max-height: none;
+  }
+  .hero-strip.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+  }
+  .orb-btn { touch-action: manipulation; }
+  .orb {
+    width: 88px;
+    height: 88px;
+  }
+  .hero-copy h2 {
+    font-size: 1.45rem;
+    margin: 2px 0 4px;
+    letter-spacing: -0.03em;
+  }
+  .lede {
+    font-size: 0.9rem;
+    max-width: 28ch;
+    margin: 0 auto;
+  }
+  .eyebrow { font-size: 0.7rem; }
+
+  .chat {
+    padding: 4px 12px 8px;
+    gap: 10px;
+    min-height: 0;
+  }
+  .msg {
+    max-width: 92%;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    border-radius: 18px;
+  }
+  .msg.user { border-bottom-right-radius: 6px; }
+  .msg.assistant { border-bottom-left-radius: 6px; }
+  .msg.tool {
+    font-size: 0.72rem;
+    max-width: 100%;
+  }
+
+  .composer-wrap {
+    padding: 0 10px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(180deg, transparent, rgba(5, 9, 14, 0.92) 18%, rgba(5, 9, 14, 0.98));
+  }
+  .suggestions {
+    padding: 6px 2px 8px;
+    gap: 8px;
+  }
+  .suggestions button {
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    min-height: 40px;
+  }
+  .composer {
+    grid-template-columns: 48px 1fr 48px;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 22px;
+    align-items: end;
+  }
+  .mic {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    font-size: 1.2rem;
+  }
+  .composer textarea {
+    min-height: 48px;
+    max-height: 120px;
+    font-size: 16px; /* prevents iOS zoom */
+    line-height: 1.35;
+    padding: 12px 4px;
+  }
+  .send {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border-radius: 16px;
+    display: inline-grid;
+    place-items: center;
+  }
+  .send-label { display: none; }
+  .send-icon {
+    display: inline-block;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .fineprint {
+    display: none;
+  }
+
+  .rail-footer .ghost-btn,
+  .connect-actions .ghost-btn,
+  .cmd-item {
+    min-height: 48px;
+    font-size: 0.95rem;
+  }
+  .cmd-search input,
+  .model-select,
+  label input,
+  label select {
+    min-height: 48px;
+    font-size: 16px;
+    border-radius: 14px;
+  }
+
+  .modal {
+    max-width: 100vw;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .modal[open] {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    height: 100dvh;
+    width: 100vw;
+    background: transparent;
+  }
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border-radius: 22px 22px 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    max-height: min(88dvh, 720px);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-card footer {
+    position: sticky;
+    bottom: 0;
+    padding-top: 8px;
+    background: linear-gradient(180deg, transparent, var(--bg2) 30%);
+  }
+  .modal-card footer .ghost-btn,
+  .modal-card footer .primary-btn {
+    min-height: 48px;
+    flex: 1;
+  }
   .grid-2 { grid-template-columns: 1fr; }
+
+  .install-banner {
+    left: 10px;
+    right: 10px;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px;
+  }
+  .install-banner .actions {
+    width: 100%;
+  }
+  .install-banner .actions .ghost-btn,
+  .install-banner .actions .primary-btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
   body.drawer-open::before {
     content: "";
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 15;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 25;
   }
 }
 
 @media (max-width: 420px) {
-  .hero-copy h2 { font-size: 1.35rem; }
-  .lede { font-size: 0.88rem; }
-  .send span { font-size: 0.9rem; }
+  .hero-copy h2 { font-size: 1.28rem; }
+  .suggestions button { max-width: 70vw; }
+  .msg { font-size: 0.92rem; }
+}
+
+@media (display-mode: standalone) {
+  .install-banner { display: none !important; }
+  .topbar {
+    padding-top: max(12px, env(safe-area-inset-top, 0px));
+  }
 }
