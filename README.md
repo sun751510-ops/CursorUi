@@ -2,7 +2,7 @@
 
 Dexter / Jarvis-style AI copilot — iPhone Home Screen UI + desktop Electron with Cursor.
 
-## iPhone → Cursor **without Vercel**
+## iPhone → Cursor (Wi‑Fi relay)
 
 Your phone talks to the **CwayClient desktop app on your computer** over Wi‑Fi. Cursor runs on the PC; the phone is the mic + UI.
 
@@ -16,7 +16,7 @@ npm start
 3. Note the **Phone relay** URL shown in Settings (like `http://192.168.1.20:3847`)
 
 ### On your iPhone
-1. Open https://litter.catbox.moe/kzu1me.html in **Safari** → Add to Home Screen  
+1. Open the phone UI in **Safari** → Add to Home Screen  
 2. Settings → **Desktop relay URL** = that `http://IP:3847`  
 3. Tap **Test** (must be on the **same Wi‑Fi**)  
 4. Tap the mic (on-device speech) or type — replies come from Cursor on your PC

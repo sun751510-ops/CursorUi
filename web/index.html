@@ -23,7 +23,7 @@
   <div class="noise" aria-hidden="true"></div>
 
   <div id="installBanner" class="install-banner" role="dialog" aria-label="Install app">
-    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen</p>
+    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen · then paste your PC’s relay URL</p>
     <div class="actions">
       <button type="button" class="ghost-btn" id="installDismiss">Later</button>
       <button type="button" class="primary-btn" id="installBtn">How</button>
@@ -157,8 +157,8 @@
           <input name="proxyUrl" id="setProxyUrl" placeholder="http://192.168.1.20:3847" />
         </label>
         <p class="hint" id="cursorHint">
-          <strong>iPhone:</strong> run CwayClient on your computer (same Wi‑Fi), paste the relay URL shown there
-          (like <code>http://192.168.x.x:3847</code>). Mic uses on-device speech; AI replies come from Cursor on your PC.
+          <strong>iPhone:</strong> run CwayClient on your computer (same Wi‑Fi), paste the <strong>Phone relay</strong> URL from desktop Settings
+          (like <code>http://192.168.x.x:3847</code>). Mic uses on-device speech; Cursor runs on your PC.
         </p>
         <p class="hint" id="relayInfo" hidden></p>
       </div>
@@ -169,10 +169,10 @@
           <input name="baseUrl" id="setBaseUrl" placeholder="https://api.openai.com/v1" />
         </label>
         <label>
-          <span>API key (also used for iPhone voice → Whisper)</span>
+          <span>API key</span>
           <input name="apiKey" id="setApiKey" type="password" placeholder="sk-… from platform.openai.com" />
         </label>
-        <p class="hint">On iPhone, set provider to OpenAI-compatible and paste a key so the mic can transcribe with Whisper.</p>
+        <p class="hint">Desktop fallback when Cursor is unavailable. Phone mic uses on-device speech + the desktop relay.</p>
       </div>
 
       <label>
@@ -256,7 +256,6 @@
   </dialog>
 
   <script src="native.js"></script>
-  <script src="cursor-cloud.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

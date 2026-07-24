@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="CwayClient" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>CwayClient</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
@@ -922,7 +922,7 @@ label input:focus,
   <div class="noise" aria-hidden="true"></div>
 
   <div id="installBanner" class="install-banner" role="dialog" aria-label="Install app">
-    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen</p>
+    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen · then paste your PC’s relay URL</p>
     <div class="actions">
       <button type="button" class="ghost-btn" id="installDismiss">Later</button>
       <button type="button" class="primary-btn" id="installBtn">How</button>
@@ -1056,8 +1056,8 @@ label input:focus,
           <input name="proxyUrl" id="setProxyUrl" placeholder="http://192.168.1.20:3847" />
         </label>
         <p class="hint" id="cursorHint">
-          <strong>iPhone:</strong> run CwayClient on your computer (same Wi‑Fi), paste the relay URL shown there
-          (like <code>http://192.168.x.x:3847</code>). Mic uses on-device speech; AI replies come from Cursor on your PC.
+          <strong>iPhone:</strong> run CwayClient on your computer (same Wi‑Fi), paste the <strong>Phone relay</strong> URL from desktop Settings
+          (like <code>http://192.168.x.x:3847</code>). Mic uses on-device speech; Cursor runs on your PC.
         </p>
         <p class="hint" id="relayInfo" hidden></p>
       </div>
@@ -1068,10 +1068,10 @@ label input:focus,
           <input name="baseUrl" id="setBaseUrl" placeholder="https://api.openai.com/v1" />
         </label>
         <label>
-          <span>API key (also used for iPhone voice → Whisper)</span>
+          <span>API key</span>
           <input name="apiKey" id="setApiKey" type="password" placeholder="sk-… from platform.openai.com" />
         </label>
-        <p class="hint">On iPhone, set provider to OpenAI-compatible and paste a key so the mic can transcribe with Whisper.</p>
+        <p class="hint">Desktop fallback when Cursor is unavailable. Phone mic uses on-device speech + the desktop relay.</p>
       </div>
 
       <label>
@@ -1282,139 +1282,6 @@ label input:focus,
 
 </script>
 <script>
-/**
- * Cursor Cloud Agents helper for the phone web app.
- * Talks to api.cursor.com through an optional CORS proxy.
- */
-(function () {
-  function authHeader(apiKey) {
-    // Cursor accepts Basic (key as username) or Bearer
-    return `Basic ${btoa(`${apiKey}:`)}`;
-  }
-
-  async function cursorFetch({ apiKey, proxyUrl, path, method = 'GET', body }) {
-    const key = String(apiKey || '').trim();
-    if (!key) throw new Error('Add your Cursor API key in Settings');
-
-    const proxy = String(proxyUrl || '').trim().replace(/\/$/, '');
-    if (proxy) {
-      const res = await fetch(proxy, {
-        method: method === 'GET' ? 'GET' : 'POST',
-        headers: {
-          Authorization: authHeader(key),
-          'Content-Type': 'application/json',
-          'x-cursor-path': path,
-          'x-cursor-method': method
-        },
-        body: method === 'GET' ? undefined : JSON.stringify(body || {})
-      });
-      const data = await res.json().catch(async () => ({ raw: await res.text() }));
-      if (!res.ok) {
-        throw new Error(data.error?.message || data.error || data.message || `Cursor proxy ${res.status}`);
-      }
-      return data;
-    }
-
-    // Direct (works if Cursor allows your origin; often blocked in Safari)
-    const res = await fetch(`https://api.cursor.com${path}`, {
-      method,
-      headers: {
-        Authorization: authHeader(key),
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
-      },
-      body: method === 'GET' ? undefined : JSON.stringify(body || {})
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(data.message || data.error?.message || `Cursor API ${res.status}`);
-    }
-    return data;
-  }
-
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
-  window.CwayCursorCloud = {
-    async listModels({ apiKey, proxyUrl }) {
-      const data = await cursorFetch({ apiKey, proxyUrl, path: '/v1/models', method: 'GET' });
-      const items = data.models || data.items || data || [];
-      return (Array.isArray(items) ? items : []).map((m) => ({
-        id: m.id || m.modelId || m.name,
-        displayName: m.displayName || m.name || m.id,
-        description: m.description || ''
-      }));
-    },
-
-    async chat({ apiKey, proxyUrl, model, userText, agentId }) {
-      const system =
-        'You are CwayClient, a concise helpful voice assistant on the user\'s iPhone. ' +
-        'Answer clearly in short spoken-friendly sentences. No repo/code edits — just help.';
-
-      const promptText = `${system}\n\nUser said: ${userText}`;
-      const modelId = !model || model === 'auto' ? undefined : model;
-
-      let id = agentId;
-      let runId;
-
-      if (id) {
-        const run = await cursorFetch({
-          apiKey,
-          proxyUrl,
-          path: `/v1/agents/${id}/runs`,
-          method: 'POST',
-          body: { prompt: { text: promptText } }
-        });
-        runId = run.id || run.run?.id;
-        id = run.agentId || run.run?.agentId || id;
-      } else {
-        const body = {
-          name: 'CwayClient Phone',
-          prompt: { text: promptText }
-        };
-        if (modelId) body.model = { id: modelId };
-        const created = await cursorFetch({
-          apiKey,
-          proxyUrl,
-          path: '/v1/agents',
-          method: 'POST',
-          body
-        });
-        id = created.agent?.id || created.id;
-        runId = created.run?.id || created.latestRunId;
-      }
-
-      if (!id || !runId) throw new Error('Cursor did not return an agent/run id');
-
-      // Poll until finished (phone-friendly timeout)
-      let resultText = '';
-      for (let i = 0; i < 60; i += 1) {
-        await sleep(i < 3 ? 800 : 1500);
-        const run = await cursorFetch({
-          apiKey,
-          proxyUrl,
-          path: `/v1/agents/${id}/runs/${runId}`,
-          method: 'GET'
-        });
-        const status = run.status || run.run?.status;
-        if (status === 'FINISHED') {
-          resultText = run.result || run.run?.result || run.text || 'Done.';
-          break;
-        }
-        if (status === 'ERROR' || status === 'CANCELLED' || status === 'EXPIRED') {
-          throw new Error(run.error?.message || `Cursor run ${status}`);
-        }
-      }
-      if (!resultText) throw new Error('Cursor timed out — try again');
-
-      return { ok: true, text: resultText, agentId: id, runId };
-    }
-  };
-})();
-
-</script>
-<script>
 (() => {
   const SUGGESTIONS = [
     'What can you do?',
@@ -1566,7 +1433,7 @@ label input:focus,
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
       const relay = rawProxyUrl().replace(/\/$/, '');
 
-      // Phone → desktop CwayClient relay (Cursor SDK on your computer, no Vercel)
+      // Phone → desktop CwayClient Wi‑Fi relay (Cursor SDK on your computer)
       if ((settings.provider || 'cursor') === 'cursor' && relay) {
         try {
           const res = await fetch(`${relay}/chat`, {
@@ -1602,11 +1469,11 @@ label input:focus,
           role: 'assistant',
           content:
             `Got “${last.slice(0, 120)}”.\n\n` +
-            `To use **Cursor from your iPhone (no Vercel)**:\n` +
+            `To use **Cursor from your iPhone**:\n` +
             `1. On your computer: \`npm start\` (CwayClient desktop)\n` +
             `2. Put your Cursor API key in the desktop Settings\n` +
             `3. On phone Settings → Desktop relay URL = \`http://YOUR-PC-IP:3847\`\n` +
-            `4. Tap mic / type — replies come from Cursor on your PC`
+            `4. Tap **Test**, then mic / type — replies come from Cursor on your PC`
         },
         commands: allCommands(),
         provider: 'cursor-demo'
@@ -2386,7 +2253,7 @@ label input:focus,
       appendMessage({
         role: 'system',
         content: isIOS
-          ? '**iPhone install (no Mac needed)**\n1. Open this page in **Safari**\n2. Tap Share (square with ↑)\n3. Tap **Add to Home Screen** → Add\n4. Open CwayClient from your home screen\n5. For voice: Settings → OpenAI-compatible → paste an OpenAI key (Whisper)'
+          ? '**iPhone install (no Mac needed)**\n1. Open this page in **Safari**\n2. Tap Share (square with ↑)\n3. Tap **Add to Home Screen** → Add\n4. Open CwayClient from your home screen\n5. On your computer run `npm start`, paste Cursor API key, then on phone Settings → Desktop relay URL = `http://YOUR-PC-IP:3847`'
           : 'Use your browser menu → Install app / Add to Home Screen.'
       });
       openRail(false);
@@ -2473,6 +2340,17 @@ label input:focus,
     await refreshModels(false);
     updateCursorCard();
 
+    // Desktop: show Wi‑Fi relay URL for the iPhone
+    const relayEl = document.getElementById('relayInfo');
+    if (relayEl && bootData.relay?.urls?.length) {
+      relayEl.hidden = false;
+      relayEl.innerHTML = `<strong>Phone relay (same Wi‑Fi):</strong> ${bootData.relay.urls
+        .map((u) => `<code>${u}</code>`)
+        .join(' · ')} — paste one into the iPhone app Settings.`;
+      els.cursorStatus.textContent = `Relay · ${bootData.relay.urls[0]}`;
+      els.cursorDot.classList.add('ok');
+    }
+
     // Phone: past chats were breaking the layout — start clean / keep history tiny
     let history = Array.isArray(bootData.history) ? bootData.history : [];
     if (isPhone) {
@@ -2530,10 +2408,12 @@ label input:focus,
         appendMessage({
           role: 'system',
           content: isPhone
-            ? 'Ready — type a message below. Tap Clear anytime to reset chat.'
+            ? (state.settings.proxyUrl || '').trim()
+              ? 'Ready — mic / type goes to Cursor on your computer via Wi‑Fi relay.'
+              : '**Pair with your computer:** run `npm start` on the PC → Settings shows a Phone relay URL → paste it here under Settings → Desktop relay URL → tap **Test**.'
             : state.mode === 'demo'
               ? 'Website demo (mic often blocked). Type to chat.'
-              : 'Connect Cursor in Settings, pick a model, then talk or type.'
+              : 'Connect Cursor in Settings, pick a model, then talk or type. Phone relay URL is shown below for your iPhone.'
         });
       }
     }

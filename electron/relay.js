@@ -1,6 +1,6 @@
 /**
  * Local Wi‑Fi relay so an iPhone can use this computer's Cursor connection.
- * No Vercel / cloud proxy required — phone and PC on the same network.
+ * Phone and PC must be on the same network.
  */
 const http = require('http');
 const os = require('os');
@@ -26,7 +26,7 @@ function sendJson(res, status, obj) {
     'Content-Length': Buffer.byteLength(body),
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Authorization, Content-Type, x-cursor-path, x-cursor-method'
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type'
   });
   res.end(body);
 }
@@ -55,7 +55,7 @@ function createRelayServer({ cursorBridge, getSettings, getAllCommands, port = D
         res.writeHead(204, {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type, x-cursor-path, x-cursor-method',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type',
           'Access-Control-Max-Age': '86400'
         });
         res.end();

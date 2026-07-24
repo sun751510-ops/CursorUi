@@ -149,7 +149,7 @@
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
       const relay = rawProxyUrl().replace(/\/$/, '');
 
-      // Phone → desktop CwayClient relay (Cursor SDK on your computer, no Vercel)
+      // Phone → desktop CwayClient Wi‑Fi relay (Cursor SDK on your computer)
       if ((settings.provider || 'cursor') === 'cursor' && relay) {
         try {
           const res = await fetch(`${relay}/chat`, {
@@ -185,11 +185,11 @@
           role: 'assistant',
           content:
             `Got “${last.slice(0, 120)}”.\n\n` +
-            `To use **Cursor from your iPhone (no Vercel)**:\n` +
+            `To use **Cursor from your iPhone**:\n` +
             `1. On your computer: \`npm start\` (CwayClient desktop)\n` +
             `2. Put your Cursor API key in the desktop Settings\n` +
             `3. On phone Settings → Desktop relay URL = \`http://YOUR-PC-IP:3847\`\n` +
-            `4. Tap mic / type — replies come from Cursor on your PC`
+            `4. Tap **Test**, then mic / type — replies come from Cursor on your PC`
         },
         commands: allCommands(),
         provider: 'cursor-demo'
@@ -969,7 +969,7 @@
       appendMessage({
         role: 'system',
         content: isIOS
-          ? '**iPhone install (no Mac needed)**\n1. Open this page in **Safari**\n2. Tap Share (square with ↑)\n3. Tap **Add to Home Screen** → Add\n4. Open CwayClient from your home screen\n5. For voice: Settings → OpenAI-compatible → paste an OpenAI key (Whisper)'
+          ? '**iPhone install (no Mac needed)**\n1. Open this page in **Safari**\n2. Tap Share (square with ↑)\n3. Tap **Add to Home Screen** → Add\n4. Open CwayClient from your home screen\n5. On your computer run `npm start`, paste Cursor API key, then on phone Settings → Desktop relay URL = `http://YOUR-PC-IP:3847`'
           : 'Use your browser menu → Install app / Add to Home Screen.'
       });
       openRail(false);
@@ -1029,7 +1029,7 @@
       els.modeBadge.textContent = state.mode === 'demo' ? 'Mobile demo' : 'Desktop';
       els.fineprint.textContent =
         state.mode === 'demo'
-          ? 'Website demo · for working mic install the mobile app'
+          ? 'Phone UI · pair Desktop relay URL to use Cursor on your PC'
           : `Desktop · Cursor SDK · model ${state.settings.model || 'auto'}`;
       els.heroEyebrow.textContent =
         state.mode === 'demo' ? 'Demo · phone preview' : 'Cursor-linked · standing by';
@@ -1124,10 +1124,12 @@
         appendMessage({
           role: 'system',
           content: isPhone
-            ? 'Ready — type a message below. Tap Clear anytime to reset chat.'
+            ? (state.settings.proxyUrl || '').trim()
+              ? 'Ready — mic / type goes to Cursor on your computer via Wi‑Fi relay.'
+              : '**Pair with your computer:** run `npm start` on the PC → Settings shows a Phone relay URL → paste it here under Settings → Desktop relay URL → tap **Test**.'
             : state.mode === 'demo'
               ? 'Website demo (mic often blocked). Type to chat.'
-              : 'Connect Cursor in Settings, pick a model, then talk or type.'
+              : 'Connect Cursor in Settings, pick a model, then talk or type. Phone relay URL is shown below for your iPhone.'
         });
       }
     }
