@@ -1,0 +1,19 @@
+{
+  "name": "cwayclient",
+  "version": "1.0.0",
+  "description": "CwayClient — desktop Jarvis assistant with webview UI and OS commands",
+  "main": "electron/main.js",
+  "author": "cway sun",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "demo": "npx --yes serve -l 4173 ."
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1"
+  }
+}

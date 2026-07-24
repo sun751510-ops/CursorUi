@@ -1,22 +1,58 @@
-# Macro Studio
+# CwayClient
 
-Desktop-style macro automation editor UI in a single self-contained `index.html`.
+Desktop Jarvis assistant with a polished webview UI, prebuilt OS commands, and an AI that can run or invent new commands.
 
-## Open on phone / browser
+## Mobile UI demo (phone)
 
-**Fastest (works now):**  
-https://litter.catbox.moe/2oair5.html
+After this branch is pushed, open one of these on your phone:
 
-**GitHub preview:**  
-https://htmlpreview.github.io/?https://github.com/sun751510-ops/CursorUi/blob/main/index.html
+**Branch preview (works before merge):**  
+https://raw.githack.com/sun751510-ops/CursorUi/cursor/cwayclient-jarvis-2fc8/web/index.html
 
-**GitHub Pages (after enabling once):**  
-1. Open repo **Settings → Pages**
-2. Under **Build and deployment**, set Source to **GitHub Actions**
-3. Then open: https://sun751510-ops.github.io/CursorUi/
+**GitHub Pages (after merge + Pages enabled):**  
+https://sun751510-ops.github.io/CursorUi/
 
-## Local
+OS actions are simulated in the browser demo. Layout, chat, command rail, and “AI invents a command” all work on phone.
 
-Open `index.html` directly in a browser (no build step).
+## Desktop app (real OS actions)
 
-Uses Tailwind CDN + Font Awesome, with plain CSS fallbacks so the UI still renders if CDNs are blocked.
+```bash
+npm install
+npm start
+```
+
+Requires Node.js 18+. Electron window loads the same UI via secure preload bridge.
+
+### Settings
+
+Open **Settings** in the app and set:
+
+| Field | Recommendation |
+| --- | --- |
+| API base URL | `https://api.openai.com/v1` or OpenRouter `https://openrouter.ai/api/v1` |
+| Model | **`gpt-4o`** (default) or **`anthropic/claude-sonnet-4`** on OpenRouter |
+| API key | Your provider key |
+
+**Best model for this project:** a strong **tool-calling** chat model. Prefer **GPT-4o** or **Claude Sonnet 4** — both reliably call `run_command` / `add_command`. Local models work via any OpenAI-compatible proxy, but cloud tool-calling models feel more Jarvis-like.
+
+## What it can do
+
+**Prebuilt commands:** open URL, open/reveal path, list/read/write files, run shell (with confirm), open app, system info, clipboard, notify, open home.
+
+**AI tools:** `list_commands`, `run_command`, `add_command` (persist custom shell/url/path commands with `{{param}}` templates).
+
+## Project layout
+
+```
+electron/     main process, preload, AI tool loop
+web/          UI (also the mobile demo)
+legacy/       previous Macro Studio single-file UI
+```
+
+## Local demo server
+
+```bash
+npm run demo
+```
+
+Then open the printed localhost URL on your phone if you’re on the same network.

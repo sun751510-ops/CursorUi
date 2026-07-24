@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#071018" />
+  <meta name="description" content="CwayClient — desktop Jarvis assistant UI demo" />
+  <title>CwayClient</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="noise" aria-hidden="true"></div>
+
+  <div id="app" class="app">
+    <aside class="rail" id="rail">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">
+          <span class="mark-core"></span>
+          <span class="mark-ring"></span>
+        </div>
+        <div class="brand-copy">
+          <strong>CwayClient</strong>
+          <span id="modeBadge">Desktop</span>
+        </div>
+        <button class="icon-btn rail-close" id="railClose" aria-label="Close menu">✕</button>
+      </div>
+
+      <div class="rail-block">
+        <div class="rail-label">Commands</div>
+        <div class="cmd-search">
+          <input id="cmdFilter" type="search" placeholder="Filter commands" autocomplete="off" />
+        </div>
+        <div class="cmd-list" id="cmdList"></div>
+      </div>
+
+      <div class="rail-footer">
+        <button class="ghost-btn" id="btnAddCommand">＋ New command</button>
+        <button class="ghost-btn" id="btnSettings">⚙ Settings</button>
+      </div>
+    </aside>
+
+    <main class="stage">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu">☰</button>
+        <div class="top-title">
+          <h1>CwayClient</h1>
+          <p id="statusLine">Standing by</p>
+        </div>
+        <div class="top-actions">
+          <button class="chip" id="btnClearChat" title="Clear chat">Clear</button>
+        </div>
+      </header>
+
+      <section class="hero-strip" id="heroStrip">
+        <div class="orb" aria-hidden="true">
+          <div class="orb-glow"></div>
+          <div class="orb-core"></div>
+        </div>
+        <div class="hero-copy">
+          <p class="eyebrow" id="heroEyebrow">Online · ready</p>
+          <h2>What should we do?</h2>
+          <p class="lede">Ask me to open apps, files, URLs, run shell, or invent a new command.</p>
+        </div>
+      </section>
+
+      <section class="chat" id="chat" aria-live="polite"></section>
+
+      <section class="composer-wrap">
+        <div class="suggestions" id="suggestions"></div>
+        <form class="composer" id="composer">
+          <textarea
+            id="prompt"
+            rows="1"
+            placeholder="Tell CwayClient what to do…"
+            enterkeyhint="send"
+            autocomplete="off"
+          ></textarea>
+          <button type="submit" class="send" id="sendBtn" aria-label="Send">
+            <span>Send</span>
+          </button>
+        </form>
+        <p class="fineprint" id="fineprint">Desktop mode · OS actions enabled</p>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="settingsModal" class="modal">
+    <form method="dialog" class="modal-card" id="settingsForm">
+      <header>
+        <h3>Settings</h3>
+        <button value="cancel" class="icon-btn" aria-label="Close">✕</button>
+      </header>
+      <label>
+        <span>API base URL</span>
+        <input name="baseUrl" id="setBaseUrl" placeholder="https://api.openai.com/v1" />
+      </label>
+      <label>
+        <span>Model</span>
+        <input name="model" id="setModel" placeholder="gpt-4o" />
+      </label>
+      <label>
+        <span>API key</span>
+        <input name="apiKey" id="setApiKey" type="password" placeholder="sk-… or leave blank for demo AI" />
+      </label>
+      <label class="check">
+        <input type="checkbox" id="setConfirmShell" checked />
+        <span>Confirm shell commands</span>
+      </label>
+      <p class="hint">
+        Recommended models: <strong>gpt-4o</strong> or <strong>claude-sonnet-4</strong> (via OpenRouter / Anthropic-compatible proxy).
+        Tool-calling models work best for command inventing.
+      </p>
+      <footer>
+        <button value="cancel" class="ghost-btn">Cancel</button>
+        <button value="default" class="primary-btn" id="saveSettings">Save</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="commandModal" class="modal">
+    <form method="dialog" class="modal-card" id="commandForm">
+      <header>
+        <h3>New command</h3>
+        <button value="cancel" class="icon-btn" aria-label="Close">✕</button>
+      </header>
+      <div class="grid-2">
+        <label>
+          <span>ID</span>
+          <input name="id" id="cmdId" placeholder="open_notes" required />
+        </label>
+        <label>
+          <span>Name</span>
+          <input name="name" id="cmdName" placeholder="Open Notes" required />
+        </label>
+      </div>
+      <label>
+        <span>Description</span>
+        <input name="description" id="cmdDesc" placeholder="Opens my notes folder" required />
+      </label>
+      <label>
+        <span>Shell (optional, use {{param}})</span>
+        <input name="shell" id="cmdShell" placeholder="open {{path}}" />
+      </label>
+      <label>
+        <span>URL (optional)</span>
+        <input name="url" id="cmdUrl" placeholder="https://…" />
+      </label>
+      <label>
+        <span>Path (optional)</span>
+        <input name="path" id="cmdPath" placeholder="~/Documents" />
+      </label>
+      <footer>
+        <button value="cancel" class="ghost-btn">Cancel</button>
+        <button value="default" class="primary-btn" id="saveCommand">Create</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="runModal" class="modal">
+    <form method="dialog" class="modal-card" id="runForm">
+      <header>
+        <h3 id="runTitle">Run command</h3>
+        <button value="cancel" class="icon-btn" aria-label="Close">✕</button>
+      </header>
+      <p class="hint" id="runDesc"></p>
+      <div id="runFields"></div>
+      <footer>
+        <button value="cancel" class="ghost-btn">Cancel</button>
+        <button value="default" class="primary-btn" id="confirmRun">Run</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
