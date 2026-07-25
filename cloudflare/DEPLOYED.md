@@ -1,13 +1,15 @@
 # Live app (open in Safari — not GitHub)
 
-**Open this URL (the real app page):**  
-https://cwayclient-cursor-proxy.bubbly-euphonium.workers.dev
+**Open this URL:**  
+https://cwayclient-cursor-proxy.heady-handle.workers.dev
 
-If you briefly see “Just a moment…”, wait — then CwayClient loads.
+If you see “Just a moment…”, wait — then CwayClient loads.
 
-**Proxy URL** (auto-filled when you open the Worker): same as above.
+**Claim into YOUR Cloudflare account NOW** (or this link dies again):  
+https://dash.cloudflare.com/claim-preview?claimToken=w6BrJXbMV2Sray0uX43Dqx9AyzWyr1YOmgTaq90lYlA  
 
-**Claim into your Cloudflare account within 1 hour:**  
-https://dash.cloudflare.com/claim-preview?claimToken=saIfxeNwGAzVadbMGhtfhn0_cnxb0G1CVCJQhPKWzms
+1. Open the claim link  
+2. Sign in / create a free Cloudflare account  
+3. Keep the Worker — then the same `*.workers.dev` URL stays forever  
 
-Do **not** open the GitHub / jsDelivr `.html` file link — Safari shows source code there (`text/plain`).
+Proxy URL auto-fills when you open the Worker site. Paste your Cursor API key → Test.
