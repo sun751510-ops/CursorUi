@@ -28,7 +28,7 @@ const CORS = {
 };
 
 const APP_HTML = ${JSON.stringify(html)};
-const DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM';
+const DEFAULT_VOICE = 'EXAVITQu4vr4xnSDxMaL';
 
 function json(status, obj) {
   return new Response(JSON.stringify(obj), {

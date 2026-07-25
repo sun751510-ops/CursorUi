@@ -99,7 +99,7 @@
       hasApiKey: false,
       workspacePath: '',
       elevenLabsKey: '',
-      elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
+      elevenLabsVoiceId: 'EXAVITQu4vr4xnSDxMaL',
       hasElevenKey: false
     },
     pendingRun: null,
@@ -147,6 +147,10 @@
     if (!store.elevenLabsVoiceId && defaults.elevenLabsVoiceId) {
       patch.elevenLabsVoiceId = String(defaults.elevenLabsVoiceId).trim();
     }
+    // Old default (Rachel) is a library voice — 402 on free API plans
+    if (store.elevenLabsVoiceId === '21m00Tcm4TlvDq8ikWAM') {
+      patch.elevenLabsVoiceId = 'EXAVITQu4vr4xnSDxMaL';
+    }
     if (!store.proxyUrl && defaults.proxyUrl) {
       patch.proxyUrl = String(defaults.proxyUrl).trim();
     }
@@ -181,7 +185,7 @@
       voiceEnabled: store.voiceEnabled !== false,
       workspacePath: store.workspacePath || '',
       elevenLabsKey: store.elevenLabsKey || '',
-      elevenLabsVoiceId: store.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
+      elevenLabsVoiceId: store.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL',
       hasCursorKey: Boolean(store.cursorApiKey),
       hasApiKey: Boolean(store.apiKey || store.cursorApiKey),
       hasElevenKey: Boolean(store.elevenLabsKey)
@@ -382,7 +386,7 @@
           cursorApiKey: settings.hasCursorKey ? '••••••••' : '',
           apiKey: settings.apiKey ? '••••••••' : '',
           elevenLabsKey: settings.hasElevenKey ? '••••••••' : '',
-          elevenLabsVoiceId: settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
+          elevenLabsVoiceId: settings.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL',
           proxyUrl: settings.proxyUrl || ''
         },
         history
@@ -417,7 +421,7 @@
           apiKey: settings.apiKey === '••••••••' ? prev.apiKey : settings.apiKey,
           elevenLabsKey:
             settings.elevenLabsKey === '••••••••' ? prev.elevenLabsKey : settings.elevenLabsKey,
-          elevenLabsVoiceId: settings.elevenLabsVoiceId || prev.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
+          elevenLabsVoiceId: settings.elevenLabsVoiceId || prev.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL',
           baseUrl: settings.baseUrl,
           model: settings.model,
           proxyUrl: settings.proxyUrl,
@@ -429,7 +433,7 @@
         settings.hasCursorKey = Boolean(saved.cursorApiKey);
         settings.hasApiKey = Boolean(saved.apiKey || saved.cursorApiKey);
         settings.hasElevenKey = Boolean(saved.elevenLabsKey);
-        settings.elevenLabsVoiceId = saved.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+        settings.elevenLabsVoiceId = saved.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL';
         settings.proxyUrl = saved.proxyUrl || '';
         return {
           ok: true,
@@ -772,7 +776,7 @@
   async function speakElevenLabs(text) {
     const key = rawElevenKey();
     const proxy = proxyBase();
-    const voiceId = state.settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+    const voiceId = state.settings.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL';
     const clean = String(text || '').replace(/[*`#_]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4500);
     if (!clean) return false;
     if (!key) {
@@ -804,17 +808,20 @@
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      if (state.ttsAudio) {
-        try {
-          state.ttsAudio.pause();
-        } catch {
-          /* ignore */
-        }
+      // Reuse the element unlocked during the mic tap — a fresh Audio() is
+      // still blocked by iOS autoplay rules.
+      let audio = state.ttsAudio;
+      if (!audio) {
+        audio = new Audio();
+        state.ttsAudio = audio;
       }
-      const audio = new Audio(url);
+      try {
+        audio.pause();
+      } catch {
+        /* ignore */
+      }
       audio.setAttribute('playsinline', 'true');
       audio.playsInline = true;
-      state.ttsAudio = audio;
       audio.onended = () => {
         URL.revokeObjectURL(url);
         setOrb(state.busy ? 'thinking' : 'idle');
@@ -825,6 +832,7 @@
         setOrb('idle');
         setStatus('Voice playback failed');
       };
+      audio.src = url;
       await state.audioCtx?.resume?.();
       await audio.play();
       return true;
@@ -1707,7 +1715,7 @@
     document.getElementById('setWorkspace').value = state.settings.workspacePath || '';
     document.getElementById('setProxyUrl').value = state.settings.proxyUrl || '';
     document.getElementById('setElevenVoice').value =
-      state.settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+      state.settings.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL';
     document.getElementById('setConfirmShell').checked = state.settings.confirmShell !== false;
     document.getElementById('setVoice').checked = state.settings.voiceEnabled !== false;
     // Phone defaults to Cursor settings visible
@@ -1855,7 +1863,7 @@
     document.getElementById('setProvider').value = state.settings.provider || 'cursor';
     document.getElementById('setModel').value = state.settings.model || 'auto';
     document.getElementById('setElevenVoice').value =
-      state.settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+      state.settings.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL';
     fillSecretInputs();
     els.settingsModal.showModal();
   }
@@ -1909,7 +1917,7 @@
       workspacePath: document.getElementById('setWorkspace').value.trim(),
       proxyUrl: document.getElementById('setProxyUrl').value.trim(),
       elevenLabsVoiceId:
-        document.getElementById('setElevenVoice').value.trim() || '21m00Tcm4TlvDq8ikWAM',
+        document.getElementById('setElevenVoice').value.trim() || 'EXAVITQu4vr4xnSDxMaL',
       confirmShell: document.getElementById('setConfirmShell').checked,
       voiceEnabled: document.getElementById('setVoice').checked
     };
