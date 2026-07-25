@@ -1,9 +1,9 @@
 # Live app
 
 **Open in Safari:**  
-https://cwayclient-cursor-proxy.trusted-persimmon.workers.dev
+https://cwayclient-cursor-proxy.clover-hoverfly.workers.dev
 
 **Claim now:**  
-https://dash.cloudflare.com/claim-preview?claimToken=0Z2emDTBqUKg-ygL7Rc10c1XYLrrakfzrdtGYTpq-MU
+https://dash.cloudflare.com/claim-preview?claimToken=qCogGZXLdXba7loJt4DdQ90nE81J91me3Cy5RIpzUgQ
 
-Cursor + ElevenLabs API keys are pre-filled on first open (Settings shows them as dots).
+Cursor + ElevenLabs keys pre-filled. Mic replies speak out loud. Chat uses fast Workers AI for near-instant answers.

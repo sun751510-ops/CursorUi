@@ -128,9 +128,9 @@
     if (!id || !runId) throw new Error('Cursor did not return an agent/run id — check API key plan access');
 
     let resultText = '';
-    for (let i = 0; i < 90; i += 1) {
-      await sleep(i < 5 ? 1000 : 2000);
-      if (i === 0 || i % 3 === 0) onStatus?.(`Cursor working… (${i + 1})`);
+    for (let i = 0; i < 120; i += 1) {
+      await sleep(i < 10 ? 400 : 900);
+      if (i === 0 || i % 4 === 0) onStatus?.(`Cursor working… (${i + 1})`);
       const run = await cursorFetch({
         apiKey,
         proxyUrl,

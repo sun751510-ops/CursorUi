@@ -275,18 +275,53 @@
           }
         }
 
-        // Holiday / no PC: phone → Cloudflare Worker → Cursor Cloud Agents
+        // Holiday / no PC: prefer instant Workers AI, fall back to Cursor agents
+        try {
+          statusListener?.('Answering…');
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 12000);
+          const fastRes = await fetch(`${proxy}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              messages: messages
+                .filter((m) => m.role === 'user' || m.role === 'assistant')
+                .slice(-8)
+            }),
+            signal: ctrl.signal
+          });
+          clearTimeout(timer);
+          const fastRaw = await fastRes.text();
+          if (!fastRaw.trimStart().startsWith('<!')) {
+            const fastData = JSON.parse(fastRaw || '{}');
+            if (fastRes.ok && (fastData.text || fastData.ok)) {
+              return {
+                ok: true,
+                message: {
+                  role: 'assistant',
+                  content: String(fastData.text || fastData.message?.content || '').trim() || 'Done.'
+                },
+                commands: allCommands(),
+                provider: 'workers-ai',
+                model: 'llama-3.1-8b'
+              };
+            }
+          }
+        } catch {
+          /* fall through to Cursor */
+        }
+
         if (!key) {
           return {
             ok: false,
-            error: 'Add your Cursor API key in Settings (needed with the Cloudflare Worker proxy).'
+            error: 'Fast reply unavailable — add your Cursor API key in Settings as a backup.'
           };
         }
         if (!window.CwayCursorCloud) {
           return { ok: false, error: 'Cursor cloud helper missing — reload the page.' };
         }
         try {
-          statusListener?.('Talking to Cursor… (can take up to a minute)');
+          statusListener?.('Cursor backup…');
           const result = await window.CwayCursorCloud.chat({
             apiKey: key,
             proxyUrl: proxy,
@@ -307,16 +342,13 @@
             model: settings.model
           };
         } catch (err) {
-          // Drop bad cached agent id so the next send creates a fresh one
           if (/404|not found|expired|inactive/i.test(String(err.message || err))) {
             agentId = '';
             saveDemoStore({ cursorAgentId: '' });
           }
           return {
             ok: false,
-            error:
-              (err.message || String(err)) +
-              ' — Open Settings → check Cursor API key + Proxy URL, tap Test. Replies can take ~30–90s.'
+            error: (err.message || String(err)) + ' — Check Proxy URL, then try again.'
           };
         }
       }
@@ -633,6 +665,7 @@
       setSpeechConsent(choice);
       els.speechPermForm.removeEventListener('click', onClick, true);
       if (choice === 'allow') {
+        unlockAudio();
         // Still inside the Allow tap — start before the dialog closes.
         startListening();
       } else {
@@ -649,40 +682,106 @@
     }
   }
 
+  function unlockAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        if (!state.audioCtx) state.audioCtx = new AC();
+        state.audioCtx.resume?.();
+        const buf = state.audioCtx.createBuffer(1, 1, 22050);
+        const src = state.audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.connect(state.audioCtx.destination);
+        src.start(0);
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (!state.ttsAudio) {
+        state.ttsAudio = new Audio(
+          'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
+        );
+      }
+      const p = state.ttsAudio.play();
+      if (p?.then) {
+        p.then(() => {
+          try {
+            state.ttsAudio.pause();
+            state.ttsAudio.currentTime = 0;
+          } catch {
+            /* ignore */
+          }
+        }).catch(() => {});
+      }
+      state.audioUnlocked = true;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function offerTapToHear(text) {
+    const clean = String(text || '').trim();
+    if (!clean) return;
+    appendMessage({
+      role: 'system',
+      content: 'Tap below to hear the reply out loud.'
+    });
+    const row = document.createElement('div');
+    row.className = 'hear-row';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'primary-btn hear-btn';
+    btn.textContent = 'Play voice reply';
+    btn.addEventListener('click', async () => {
+      unlockAudio();
+      btn.disabled = true;
+      btn.textContent = 'Playing…';
+      await speakElevenLabs(clean);
+      btn.textContent = 'Play again';
+      btn.disabled = false;
+    });
+    row.appendChild(btn);
+    els.chat.appendChild(row);
+    els.chat.scrollTop = els.chat.scrollHeight;
+  }
+
   async function sendAfterVoice(text) {
     const content = String(text || '').trim();
     if (!content || state.busy) return;
-    setStatus('How should I answer?');
-    const mode = await askAnswerMode();
-    state.pendingAnswerMode = mode;
-    setStatus(mode === 'spoken' ? 'Got it — answering out loud…' : 'Got it — typing reply…');
+    // Mic replies always speak — unlock audio inside this tap so iPhone allows playback later
+    unlockAudio();
+    state.pendingAnswerMode = 'spoken';
+    localStorage.setItem('cway-answer-mode', 'spoken');
+    setStatus('Got it — answering out loud…');
     await handleSend(content);
   }
 
   function speakBrowser(text) {
-    if (!window.speechSynthesis) return;
+    if (!window.speechSynthesis) return false;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text.replace(/[*`#_]/g, ' ').slice(0, 500));
-    u.rate = 1.05;
+    u.rate = 1.08;
     setOrb('speaking');
     u.onend = () => setOrb(state.busy ? 'thinking' : 'idle');
     u.onerror = () => setOrb('idle');
     window.speechSynthesis.speak(u);
+    return true;
   }
 
   async function speakElevenLabs(text) {
     const key = rawElevenKey();
     const proxy = proxyBase();
     const voiceId = state.settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+    const clean = String(text || '').replace(/[*`#_]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4500);
+    if (!clean) return false;
     if (!key) {
-      setStatus('Add ElevenLabs API key in Settings for spoken answers');
-      speakBrowser(text);
-      return;
+      setStatus('Add ElevenLabs API key for spoken answers');
+      return speakBrowser(clean);
     }
     if (!proxy) {
       setStatus('Set Proxy URL for ElevenLabs voice');
-      speakBrowser(text);
-      return;
+      return speakBrowser(clean);
     }
     try {
       setStatus('Speaking…');
@@ -694,8 +793,9 @@
           'x-elevenlabs-key': key
         },
         body: JSON.stringify({
-          text: String(text || '').replace(/[*`#_]/g, ' ').slice(0, 4500),
-          voiceId
+          text: clean,
+          voiceId,
+          modelId: 'eleven_flash_v2_5'
         })
       });
       if (!res.ok) {
@@ -712,6 +812,8 @@
         }
       }
       const audio = new Audio(url);
+      audio.setAttribute('playsinline', 'true');
+      audio.playsInline = true;
       state.ttsAudio = audio;
       audio.onended = () => {
         URL.revokeObjectURL(url);
@@ -723,21 +825,30 @@
         setOrb('idle');
         setStatus('Voice playback failed');
       };
+      await state.audioCtx?.resume?.();
       await audio.play();
+      return true;
     } catch (err) {
-      setStatus(err.message || 'ElevenLabs failed — using device voice');
-      speakBrowser(text);
+      const msg = String(err?.message || err || '');
+      if (/NotAllowedError|play\(\)|user/i.test(msg) || err?.name === 'NotAllowedError') {
+        setStatus('Tap Play to hear the reply');
+        offerTapToHear(clean);
+        return false;
+      }
+      setStatus(msg || 'ElevenLabs failed — using device voice');
+      const ok = speakBrowser(clean);
+      if (!ok) offerTapToHear(clean);
+      return ok;
     }
   }
 
   async function deliverReply(text) {
-    const mode = state.pendingAnswerMode;
+    const mode = state.pendingAnswerMode || localStorage.getItem('cway-answer-mode');
     state.pendingAnswerMode = null;
-    if (mode === 'spoken') {
+    if (mode === 'spoken' && state.settings.voiceEnabled !== false) {
       await speakElevenLabs(text);
       return;
     }
-    // typed (or keyboard send) — show text only
     setOrb('idle');
   }
 
@@ -1427,6 +1538,7 @@
       }
 
       function startFromGesture() {
+        unlockAudio();
         if (useRecorderNow()) startRecordingFromGesture();
         else startWebSpeechFromGesture();
       }

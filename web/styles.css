@@ -915,3 +915,14 @@ label input:focus,
   font-size: 1.05rem;
   font-weight: 700;
 }
+
+.hear-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 12px 12px;
+}
+.hear-btn {
+  min-width: min(280px, 100%);
+  min-height: 48px;
+  font-weight: 700;
+}
