@@ -9,13 +9,13 @@ Safari can’t call Cursor’s API directly (CORS). A free **Cloudflare Worker**
 ### Live app (already deployed)
 
 **Open this in Safari** (real webpage — not GitHub source):  
-https://cwayclient-cursor-proxy.ivy-constrictor.workers.dev  
+https://cwayclient-cursor-proxy.half-periwinkle.workers.dev  
 
 If you see “Just a moment…”, wait a second — then CwayClient appears.  
 Share → **Add to Home Screen**. Proxy URL + Cursor + ElevenLabs keys are auto-filled. Mic replies speak out loud; answers use fast Workers AI.
 
-**Claim into your Cloudflare account now** (preview dies if you don’t):  
-https://dash.cloudflare.com/claim-preview?claimToken=Ib_3QO5IIlCTAR-ja_vT3QQSgKe0ANwvAnFi9qdsQSo  
+**Claim into your Cloudflare account now** (preview dies if you don’t — this is why the last link broke):  
+https://dash.cloudflare.com/claim-preview?claimToken=HKquRVE8tV_hyy2-wgNrrbahiEK84At488-lAFG0cbM  
 
 Mic: tap → **Allow** → speak → tap again → **Typed** or **Spoken**. If Safari blocks on-device speech, the mic records + transcribes via ElevenLabs.
 
