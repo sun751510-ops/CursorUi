@@ -22,3 +22,4 @@ ios/App/build/
 ios/DerivedData/
 *.iml
 .idea/
+.wrangler/
