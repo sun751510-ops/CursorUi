@@ -1464,217 +1464,129 @@
       return String(data.text || '').trim();
     }
 
-    // Shared MediaRecorder + realtime STT engine
+    // MediaRecorder with progressive live STT — text updates while you speak (iOS-safe).
     let mediaStream = null;
     let recorder = null;
     let chunks = [];
     let mime = '';
     let forceRecorder = false;
-    let realtime = null; // { ws, ctx, processor, source, committed, partial, closing }
+    let liveTimer = null;
+    let liveBusy = false;
+    let liveSeq = 0;
+    let liveText = '';
+    let recording = false;
 
-    function floatTo16BitPCM(float32) {
-      const out = new Int16Array(float32.length);
-      for (let i = 0; i < float32.length; i += 1) {
-        const s = Math.max(-1, Math.min(1, float32[i]));
-        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    function clearLiveTimer() {
+      if (liveTimer) {
+        clearTimeout(liveTimer);
+        liveTimer = null;
       }
-      return out;
     }
 
-    function bytesToBase64(bytes) {
-      let binary = '';
-      const chunk = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunk) {
-        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
-      }
-      return btoa(binary);
+    function showLiveText(text) {
+      const t = String(text || '').trim();
+      if (!t) return;
+      liveText = t;
+      els.prompt.value = t;
+      autoGrow();
+      // Mirror into voice overlay transcript if open
+      const vo = document.getElementById('voTranscript');
+      if (vo) vo.textContent = t;
     }
 
-    async function mintRealtimeToken() {
-      const key = rawElevenKey();
-      const proxy = proxyBase();
-      if (!key || !proxy) return null;
-      const res = await fetch(`${proxy}/stt-token`, {
-        method: 'POST',
-        headers: { 'x-elevenlabs-key': key, Accept: 'application/json' }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.detail?.message || `STT token ${res.status}`);
-      return data.token || data.single_use_token || null;
+    function scheduleLiveTranscribe() {
+      if (!recording || liveTimer) return;
+      // First update quickly, then every ~1.1s while speaking
+      liveTimer = setTimeout(runLiveTranscribe, liveText ? 1100 : 700);
     }
 
-    function teardownRealtime(keepUi = false) {
-      try {
-        realtime?.ws?.close();
-      } catch {
-        /* ignore */
-      }
-      try {
-        realtime?.processor?.disconnect();
-        realtime?.source?.disconnect();
-        realtime?.ctx?.close?.();
-      } catch {
-        /* ignore */
-      }
-      mediaStream?.getTracks().forEach((t) => t.stop());
-      mediaStream = null;
-      realtime = null;
-      if (!keepUi) setListeningUi(false);
-    }
-
-    async function finishRealtime() {
-      const session = realtime;
-      if (!session) {
-        setListeningUi(false);
+    async function runLiveTranscribe() {
+      liveTimer = null;
+      if (!recording || !recorder || recorder.state !== 'recording') return;
+      if (liveBusy) {
+        scheduleLiveTranscribe();
         return;
       }
-      session.closing = true;
-      setListeningUi(false);
-      setStatus('Finalising transcript…');
-      setOrb('thinking');
+      if (!rawElevenKey() || !proxyBase()) return;
+      const blob = new Blob(chunks, { type: mime || 'audio/mp4' });
+      // Need a bit of audio before the first STT call is useful
+      if (blob.size < 1800) {
+        scheduleLiveTranscribe();
+        return;
+      }
+      liveBusy = true;
+      const seq = ++liveSeq;
       try {
-        if (session.ws?.readyState === WebSocket.OPEN) {
-          session.ws.send(JSON.stringify({ message_type: 'commit' }));
+        setStatus('Listening live…');
+        const text = await transcribeWithEleven(blob);
+        if (seq === liveSeq && recording && text) {
+          showLiveText(text);
+          setStatus('Listening live… tap mic to send');
         }
       } catch {
-        /* ignore */
-      }
-      // Wait briefly for the committed transcript after commit.
-      const deadline = Date.now() + 1800;
-      while (Date.now() < deadline && !session.committed) {
-        await sleep(80);
-      }
-      const text = String(session.committed || session.partial || els.prompt.value || '').trim();
-      teardownRealtime(true);
-      if (text) {
-        els.prompt.value = text;
-        autoGrow();
-        await sendAfterVoice(text);
-      } else {
-        setStatus('Heard nothing — try again');
-        idleStatus();
+        /* keep listening — final pass still runs on stop */
+      } finally {
+        liveBusy = false;
+        if (recording) scheduleLiveTranscribe();
       }
     }
 
-    async function startRealtimeFromStream(stream) {
-      const token = await mintRealtimeToken();
-      if (!token) throw new Error('No realtime STT token');
-
-      const wsUrl =
-        'wss://api.elevenlabs.io/v1/speech-to-text/realtime' +
-        '?model_id=scribe_v2_realtime' +
-        '&token=' +
-        encodeURIComponent(token) +
-        '&language_code=en' +
-        '&commit_strategy=manual';
-
-      const ws = new WebSocket(wsUrl);
-      const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      if (ctx.state === 'suspended') await ctx.resume();
-      const source = ctx.createMediaStreamSource(stream);
-      const processor = ctx.createScriptProcessor(4096, 1, 1);
-      const session = {
-        ws,
-        ctx,
-        processor,
-        source,
-        committed: '',
-        partial: '',
-        closing: false,
-        ready: false
-      };
-      realtime = session;
-
-      ws.onopen = () => {
-        session.ready = true;
-        setStatus('Listening live… tap mic to send');
-      };
-      ws.onmessage = (ev) => {
-        let msg = {};
-        try {
-          msg = JSON.parse(ev.data);
-        } catch {
-          return;
-        }
-        const type = msg.message_type || msg.type || '';
-        const text = String(msg.text || msg.transcript || '').trim();
-        if (!text) return;
-        if (/partial/i.test(type)) {
-          session.partial = text;
-          els.prompt.value = `${session.committed}${session.committed ? ' ' : ''}${text}`.trim();
-          autoGrow();
-        } else if (/committed/i.test(type)) {
-          session.committed = `${session.committed}${session.committed ? ' ' : ''}${text}`.trim();
-          session.partial = '';
-          els.prompt.value = session.committed;
-          autoGrow();
-        }
-      };
-      ws.onerror = () => {
-        if (!session.closing) {
-          // Fall back to batch MediaRecorder on the same stream
-          teardownRealtime(true);
-          startBatchRecorder(stream);
-        }
-      };
-      ws.onclose = () => {
-        if (!session.closing && realtime === session) {
-          teardownRealtime(true);
-          startBatchRecorder(stream);
-        }
-      };
-
-      processor.onaudioprocess = (e) => {
-        if (!session.ready || session.ws.readyState !== WebSocket.OPEN) return;
-        const input = e.inputBuffer.getChannelData(0);
-        const pcm = floatTo16BitPCM(input);
-        const b64 = bytesToBase64(new Uint8Array(pcm.buffer));
-        try {
-          session.ws.send(
-            JSON.stringify({
-              message_type: 'input_audio_chunk',
-              audio_base_64: b64,
-              commit: false,
-              sample_rate: 16000
-            })
-          );
-        } catch {
-          /* ignore */
-        }
-      };
-      source.connect(processor);
-      processor.connect(ctx.destination);
-    }
-
-    function startBatchRecorder(stream) {
+    function startLiveRecorder(stream) {
       mediaStream = stream;
       chunks = [];
+      liveText = '';
+      liveSeq = 0;
+      liveBusy = false;
+      clearLiveTimer();
       mime = pickMime();
       recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       mime = recorder.mimeType || mime || 'audio/mp4';
+      recording = true;
       recorder.ondataavailable = (ev) => {
         if (ev.data?.size) chunks.push(ev.data);
+        // Kick progressive STT as chunks arrive
+        if (recording && rawElevenKey()) scheduleLiveTranscribe();
       };
       recorder.onerror = () => {
+        recording = false;
+        clearLiveTimer();
         setListeningUi(false);
         setStatus('Mic error — type instead');
       };
       recorder.onstop = () => {
+        recording = false;
+        clearLiveTimer();
         setListeningUi(false);
         finishRecording();
       };
       setListeningUi(true);
-      setStatus('Listening… speak, then tap mic again');
-      recorder.start(250);
+      setStatus('Listening live… speak, then tap mic to send');
+      // 400ms slices → progressive STT can run while you talk
+      recorder.start(400);
+      // First interim pass soon after speech starts
+      scheduleLiveTranscribe();
     }
 
     async function finishRecording() {
+      clearLiveTimer();
+      recording = false;
+      // Wait for an in-flight live STT so we don't race the final pass
+      const waitUntil = Date.now() + 2500;
+      while (liveBusy && Date.now() < waitUntil) {
+        await sleep(50);
+      }
       const blob = new Blob(chunks, { type: mime || 'audio/mp4' });
       chunks = [];
       mediaStream?.getTracks().forEach((t) => t.stop());
       mediaStream = null;
       recorder = null;
       if (blob.size < 800) {
+        if (liveText) {
+          els.prompt.value = liveText;
+          autoGrow();
+          await sendAfterVoice(liveText);
+          return;
+        }
         setStatus('No audio captured — tap mic and speak');
         appendMessage({
           role: 'system',
@@ -1696,19 +1608,22 @@
         setStatus('Set Proxy URL for voice');
         return;
       }
-      setStatus('Transcribing…');
+      setStatus('Finalising…');
       setOrb('thinking');
       try {
-        const text = await transcribeWithEleven(blob);
+        const text = (await transcribeWithEleven(blob)) || liveText;
         if (text) {
-          els.prompt.value = text;
-          autoGrow();
+          showLiveText(text);
           await sendAfterVoice(text);
         } else {
           setStatus('Heard nothing — try again');
           idleStatus();
         }
       } catch (err) {
+        if (liveText) {
+          await sendAfterVoice(liveText);
+          return;
+        }
         setStatus('Transcription failed — type instead');
         appendMessage({
           role: 'system',
@@ -1719,11 +1634,9 @@
     }
 
     function stopRecording() {
-      if (realtime) {
-        finishRealtime();
-        return;
-      }
       if (!recorder) {
+        recording = false;
+        clearLiveTimer();
         setListeningUi(false);
         return;
       }
@@ -1740,7 +1653,7 @@
         setStatus('Mic unavailable — type instead');
         return;
       }
-      // Must invoke getUserMedia in this turn (iOS user-gesture).
+      // Must invoke getUserMedia in this turn (iOS user-gesture) — no await before it.
       const gum = navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -1749,20 +1662,10 @@
         }
       });
       setListeningUi(true);
-      setStatus('Connecting live mic…');
+      setStatus('Listening live…');
       gum
-        .then(async (stream) => {
-          mediaStream = stream;
-          // Prefer realtime Scribe (~150ms partials). Fall back to batch MediaRecorder.
-          if (rawElevenKey() && proxyBase()) {
-            try {
-              await startRealtimeFromStream(stream);
-              return;
-            } catch {
-              /* batch fallback */
-            }
-          }
-          startBatchRecorder(stream);
+        .then((stream) => {
+          startLiveRecorder(stream);
         })
         .catch(() => {
           setListeningUi(false);
