@@ -13,6 +13,7 @@ const css = fs.readFileSync(path.join(web, 'styles.css'), 'utf8');
 const native = fs.readFileSync(path.join(web, 'native.js'), 'utf8');
 const cloud = fs.readFileSync(path.join(web, 'cursor-cloud.js'), 'utf8');
 const app = fs.readFileSync(path.join(web, 'app.js'), 'utf8');
+const ui = fs.readFileSync(path.join(web, 'ui.js'), 'utf8');
 
 let defaults = {};
 const secretsPath = path.join(root, 'secrets.local.json');
@@ -31,11 +32,11 @@ let html = index
   .replace(/<link rel="icon"[^>]*>\s*/g, '')
   .replace(/<link rel="stylesheet" href="styles\.css"\s*\/?>/, `<style>\n${css}\n</style>`)
   .replace(
-    /<script src="native\.js"><\/script>\s*<script src="cursor-cloud\.js"><\/script>\s*<script src="app\.js"><\/script>/,
-    `<script>\n${defaultsScript}\n</script>\n<script>\n${native}\n</script>\n<script>\n${cloud}\n</script>\n<script>\n${app}\n</script>`
+    /<script src="native\.js"><\/script>\s*<script src="cursor-cloud\.js"><\/script>\s*<script src="app\.js"><\/script>\s*<script src="ui\.js"><\/script>/,
+    `<script>\n${defaultsScript}\n</script>\n<script>\n${native}\n</script>\n<script>\n${cloud}\n</script>\n<script>\n${app}\n</script>\n<script>\n${ui}\n</script>`
   );
 
-if (html.includes('href="styles.css"') || html.includes('src="app.js"')) {
+if (html.includes('href="styles.css"') || html.includes('src="app.js"') || html.includes('src="ui.js"')) {
   console.error('build-phone-html: failed to inline assets');
   process.exit(1);
 }

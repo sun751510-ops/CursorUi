@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#071018" />
-  <meta name="description" content="CwayClient — desktop AI copilot powered by your Cursor models" />
+  <meta name="theme-color" content="#05070b" />
+  <meta name="description" content="CwayClient — your personal AI operating system" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="CwayClient" />
@@ -15,15 +15,15 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <canvas id="particles" aria-hidden="true"></canvas>
   <div class="aurora" aria-hidden="true"></div>
-  <div class="noise" aria-hidden="true"></div>
 
   <div id="installBanner" class="install-banner" role="dialog" aria-label="Install app">
-    <p id="installCopy"><strong>iPhone: make it an app</strong><br />Safari → Share (□↑) → Add to Home Screen · then add Cloudflare Worker + Cursor key</p>
+    <p id="installCopy"><strong>Make it an app</strong><br />Safari → Share → Add to Home Screen</p>
     <div class="actions">
       <button type="button" class="ghost-btn" id="installDismiss">Later</button>
       <button type="button" class="primary-btn" id="installBtn">How</button>
@@ -31,18 +31,55 @@
   </div>
 
   <div id="app" class="app">
+    <!-- ============ TOP BAR ============ -->
+    <header class="topbar" id="topbar">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu">
+        <span class="menu-lines" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+      <div class="top-brand">
+        <span class="logo-mark" aria-hidden="true"></span>
+        <div class="top-title">
+          <h1>CwayClient</h1>
+          <p id="statusLine">Standing by</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button class="chip search-chip desktop-only" id="paletteBtn" title="Command palette (Ctrl+K)">
+          <span aria-hidden="true">⌘</span> Search · Ctrl K
+        </button>
+        <span class="net-pill" id="netPill" title="Connection">●</span>
+        <button class="icon-btn" id="btnSettingsTop" aria-label="Settings" title="Settings">⚙</button>
+        <button class="chip desktop-only" id="btnClearChat" title="New chat">＋ New chat</button>
+      </div>
+    </header>
+
+    <!-- ============ LEFT SIDEBAR ============ -->
     <aside class="rail" id="rail">
-      <div class="brand">
-        <div class="mark" aria-hidden="true">
-          <span class="mark-core"></span>
-          <span class="mark-ring"></span>
+      <div class="rail-head">
+        <div class="avatar-wrap">
+          <div class="avatar-orb" aria-hidden="true"></div>
+          <span class="online-dot" aria-hidden="true"></span>
         </div>
         <div class="brand-copy">
           <strong>CwayClient</strong>
-          <span id="modeBadge">Desktop</span>
+          <span id="modeBadge">Online</span>
         </div>
         <button class="icon-btn rail-close" id="railClose" aria-label="Close menu">✕</button>
       </div>
+
+      <nav class="rail-nav" id="railNav" aria-label="Sections">
+        <button class="nav-item active" data-view="home"><span class="nav-ico">◈</span> Home</button>
+        <button class="nav-item" data-view="chat"><span class="nav-ico">💬</span> Chat</button>
+        <button class="nav-item" data-view="memory"><span class="nav-ico">🧠</span> Memory</button>
+        <button class="nav-item" data-view="tasks"><span class="nav-ico">☑</span> Tasks</button>
+        <button class="nav-item" data-view="notes"><span class="nav-ico">📝</span> Notes</button>
+        <button class="nav-item soon" data-soon="Calendar"><span class="nav-ico">📅</span> Calendar <em>soon</em></button>
+        <button class="nav-item soon" data-soon="Files"><span class="nav-ico">📁</span> Files <em>soon</em></button>
+        <button class="nav-item soon" data-soon="Automations"><span class="nav-ico">⚡</span> Automations <em>soon</em></button>
+        <button class="nav-item soon" data-soon="Integrations"><span class="nav-ico">🔌</span> Integrations <em>soon</em></button>
+        <button class="nav-item soon" data-soon="Developer Mode"><span class="nav-ico">⌥</span> Developer <em>soon</em></button>
+        <button class="nav-item" data-view="settings"><span class="nav-ico">⚙</span> Settings</button>
+      </nav>
 
       <div class="rail-block connect-block">
         <div class="rail-label">Connection</div>
@@ -59,7 +96,7 @@
             <option value="auto">auto (Cursor default)</option>
           </select>
           <div class="connect-actions">
-            <button type="button" class="ghost-btn" id="btnRefreshModels">Refresh models</button>
+            <button type="button" class="ghost-btn" id="btnRefreshModels">Refresh</button>
             <button type="button" class="ghost-btn" id="btnTestCursor">Test</button>
           </div>
         </div>
@@ -76,60 +113,205 @@
       <div class="rail-footer">
         <button class="ghost-btn" id="btnAddCommand">＋ New command</button>
         <button class="ghost-btn" id="btnSettings">⚙ Settings</button>
+        <p class="fineprint" id="fineprint">Cursor-powered</p>
       </div>
     </aside>
 
-    <main class="stage">
-      <header class="topbar">
-        <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu">☰</button>
-        <div class="top-title">
-          <h1>CwayClient</h1>
-          <p id="statusLine">Standing by</p>
+    <!-- ============ MAIN STAGE ============ -->
+    <main class="stage" id="stage">
+      <!-- HOME -->
+      <section class="view view-home active" id="view-home">
+        <div class="home-hero glass">
+          <p class="eyebrow" id="homeEyebrow">Good day</p>
+          <h2 id="homeGreeting">Welcome back.</h2>
+          <p class="lede">Your personal AI OS is online. Ask anything — voice or text.</p>
         </div>
-        <div class="top-actions">
-          <button class="icon-btn mobile-only" id="btnSettingsTop" aria-label="Settings" title="Settings">⚙</button>
-          <button class="chip" id="btnClearChat" title="Clear chat">Clear</button>
+        <div class="quick-grid" id="quickGrid">
+          <button class="quick-card glass" data-goto="chat"><span class="q-ico">💬</span><strong>Chat</strong><em>Talk to your AI</em></button>
+          <button class="quick-card glass" data-action="voice"><span class="q-ico">🎙</span><strong>Voice mode</strong><em>Speak, hear replies</em></button>
+          <button class="quick-card glass" data-goto="memory"><span class="q-ico">🧠</span><strong>Memory</strong><em>What I remember</em></button>
+          <button class="quick-card glass" data-goto="tasks"><span class="q-ico">☑</span><strong>Tasks</strong><em>Stay on track</em></button>
+          <button class="quick-card glass" data-goto="notes"><span class="q-ico">📝</span><strong>Notes</strong><em>Capture ideas</em></button>
+          <button class="quick-card glass" data-goto="settings"><span class="q-ico">⚙</span><strong>Settings</strong><em>Keys · voice · model</em></button>
         </div>
-      </header>
-
-      <section class="hero-strip" id="heroStrip">
-        <button type="button" class="orb-btn" id="orbBtn" aria-label="Tap to talk">
-          <div class="orb" id="orb" data-state="idle" aria-hidden="true">
-            <div class="orb-glow"></div>
-            <div class="orb-core"></div>
-            <div class="orb-ring"></div>
+        <div class="widget-row">
+          <div class="widget glass">
+            <div class="widget-head"><span>Daily briefing</span></div>
+            <p id="briefText">All systems nominal. Tap the orb and ask for your briefing.</p>
           </div>
-        </button>
-        <div class="hero-copy">
-          <p class="eyebrow" id="heroEyebrow">Online · ready</p>
-          <h2>You lead. I handle the rest.</h2>
-          <p class="lede desktop-copy">Voice or type — CwayClient runs OS actions through your Cursor models.</p>
-          <p class="lede mobile-copy">Tap the orb or type below.</p>
+          <div class="widget glass">
+            <div class="widget-head"><span>Tasks</span><button class="chip" data-goto="tasks">Open</button></div>
+            <div id="homeTasks" class="widget-list"><p class="empty">No tasks yet.</p></div>
+          </div>
+          <div class="widget glass">
+            <div class="widget-head"><span>Memory</span><button class="chip" data-goto="memory">Open</button></div>
+            <div id="homeMemory" class="widget-list"><p class="empty">Nothing saved yet.</p></div>
+          </div>
         </div>
       </section>
 
-      <section class="chat" id="chat" aria-live="polite"></section>
+      <!-- CHAT -->
+      <section class="view view-chat" id="view-chat">
+        <section class="hero-strip" id="heroStrip">
+          <div class="hero-copy">
+            <p class="eyebrow" id="heroEyebrow">Online · ready</p>
+          </div>
+        </section>
+        <section class="chat" id="chat" aria-live="polite"></section>
+        <section class="composer-wrap">
+          <div class="suggestions" id="suggestions"></div>
+          <form class="composer glass" id="composer">
+            <button type="button" class="mic" id="micBtn" aria-label="Voice input" title="Tap to talk">🎙</button>
+            <textarea
+              id="prompt"
+              rows="1"
+              placeholder="Message CwayClient…"
+              enterkeyhint="send"
+              autocomplete="off"
+              autocapitalize="sentences"
+            ></textarea>
+            <button type="submit" class="send" id="sendBtn" aria-label="Send">
+              <span class="send-icon" aria-hidden="true">↑</span>
+            </button>
+          </form>
+        </section>
+      </section>
 
-      <section class="composer-wrap">
-        <div class="suggestions" id="suggestions"></div>
-        <form class="composer" id="composer">
-          <button type="button" class="mic" id="micBtn" aria-label="Voice input" title="Tap to talk">🎙</button>
-          <textarea
-            id="prompt"
-            rows="1"
-            placeholder="Message CwayClient…"
-            enterkeyhint="send"
-            autocomplete="off"
-            autocapitalize="sentences"
-          ></textarea>
-          <button type="submit" class="send" id="sendBtn" aria-label="Send">
-            <span class="send-label">Send</span>
-            <span class="send-icon" aria-hidden="true">↑</span>
-          </button>
+      <!-- MEMORY -->
+      <section class="view view-memory" id="view-memory">
+        <div class="view-head">
+          <h2>Memory</h2>
+          <p>Long-term things you asked me to remember. Stored on this device.</p>
+        </div>
+        <form class="add-row glass" id="memoryForm">
+          <input id="memoryInput" placeholder="Remember that…" autocomplete="off" />
+          <button type="submit" class="primary-btn">Save</button>
         </form>
-        <p class="fineprint" id="fineprint">Cursor-powered · pick any model in the rail</p>
+        <div class="card-grid" id="memoryList"></div>
+      </section>
+
+      <!-- TASKS -->
+      <section class="view view-tasks" id="view-tasks">
+        <div class="view-head">
+          <h2>Tasks</h2>
+          <p>Type naturally — “call mum tomorrow !high”. Priorities: !high · !low.</p>
+        </div>
+        <form class="add-row glass" id="taskForm">
+          <input id="taskInput" placeholder="Add a task…" autocomplete="off" />
+          <button type="submit" class="primary-btn">Add</button>
+        </form>
+        <div class="task-progress glass" id="taskProgress" hidden>
+          <div class="task-bar"><i id="taskBarFill"></i></div>
+          <span id="taskBarLabel">0 of 0 done</span>
+        </div>
+        <div class="task-list" id="taskList"></div>
+      </section>
+
+      <!-- NOTES -->
+      <section class="view view-notes" id="view-notes">
+        <div class="view-head">
+          <h2>Notes</h2>
+          <p>Quick capture. Tap a note to edit.</p>
+        </div>
+        <form class="add-row glass" id="noteForm">
+          <input id="noteInput" placeholder="New note…" autocomplete="off" />
+          <button type="submit" class="primary-btn">Add</button>
+        </form>
+        <div class="card-grid" id="noteList"></div>
+      </section>
+
+      <!-- SETTINGS VIEW -->
+      <section class="view view-settings" id="view-settings">
+        <div class="view-head">
+          <h2>Settings</h2>
+          <p>Appearance is dark by design. Keys, voice, and model below.</p>
+        </div>
+        <div class="settings-cards">
+          <button class="settings-row glass" id="openSettingsModal">
+            <span>🔑 API keys · voice · model</span><em>›</em>
+          </button>
+          <button class="settings-row glass" id="btnClearChatMobile">
+            <span>🧹 Clear conversation</span><em>›</em>
+          </button>
+          <button class="settings-row glass" id="btnWipeLocal">
+            <span>🗑 Erase memory, tasks &amp; notes</span><em>›</em>
+          </button>
+          <div class="settings-row glass static">
+            <span>ℹ️ CwayClient · personal AI OS</span>
+          </div>
+        </div>
       </section>
     </main>
+
+    <!-- ============ RIGHT SYSTEM PANEL (desktop) ============ -->
+    <aside class="syspanel glass" id="syspanel">
+      <div class="sys-block">
+        <div class="rail-label">System</div>
+        <div class="sys-row"><span>AI status</span><strong id="sysAi">Idle</strong></div>
+        <div class="sys-row"><span>Internet</span><strong id="sysNet">—</strong></div>
+        <div class="sys-row"><span>API</span><strong id="sysApi">—</strong></div>
+        <div class="sys-row"><span>Model</span><strong id="sysModel">auto</strong></div>
+        <div class="sys-row"><span>Local data</span><strong id="sysStore">—</strong></div>
+        <div class="sys-row"><span>Time</span><strong id="sysClock">—</strong></div>
+      </div>
+      <div class="sys-block">
+        <div class="rail-label">Modules</div>
+        <div class="module-pills" id="modulePills">
+          <span class="pill live">Conversation</span>
+          <span class="pill live">Voice</span>
+          <span class="pill live">Memory</span>
+          <span class="pill live">Tasks</span>
+          <span class="pill live">Notes</span>
+          <span class="pill">Calendar</span>
+          <span class="pill">Files</span>
+          <span class="pill">Automations</span>
+          <span class="pill">Email</span>
+          <span class="pill">Vision</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ BOTTOM NAV (mobile) ============ -->
+    <nav class="bottomnav glass" id="bottomnav" aria-label="Primary">
+      <button class="bn-item active" data-view="home"><span>◈</span><em>Home</em></button>
+      <button class="bn-item" data-view="chat"><span>💬</span><em>Chat</em></button>
+      <span class="bn-gap" aria-hidden="true"></span>
+      <button class="bn-item" data-view="tasks"><span>☑</span><em>Tasks</em></button>
+      <button class="bn-item" data-view="settings"><span>⚙</span><em>Settings</em></button>
+    </nav>
+
+    <!-- Floating voice orb -->
+    <button type="button" class="orb-btn" id="orbBtn" aria-label="Voice mode">
+      <div class="orb" id="orb" data-state="idle" aria-hidden="true">
+        <div class="orb-glow"></div>
+        <div class="orb-core"></div>
+        <div class="orb-ring"></div>
+      </div>
+    </button>
+  </div>
+
+  <!-- ============ VOICE MODE OVERLAY ============ -->
+  <div class="voice-overlay" id="voiceOverlay" aria-hidden="true">
+    <button class="icon-btn vo-close" id="voClose" aria-label="Close voice mode">✕</button>
+    <div class="vo-sphere-wrap">
+      <div class="vo-sphere" id="voSphere" data-state="idle">
+        <i></i><i></i><i></i>
+      </div>
+    </div>
+    <div class="vo-wave" id="voWave" aria-hidden="true">
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    </div>
+    <p class="vo-status" id="voStatus">Tap the orb and speak</p>
+    <p class="vo-transcript" id="voTranscript"></p>
+    <button class="vo-stop" id="voStop">Stop &amp; send</button>
+  </div>
+
+  <!-- ============ COMMAND PALETTE ============ -->
+  <div class="palette" id="palette" aria-hidden="true">
+    <div class="palette-card glass">
+      <input id="paletteInput" placeholder="Type a command… (chat, memory, tasks, notes, voice, settings)" autocomplete="off" />
+      <div class="palette-list" id="paletteList"></div>
+    </div>
   </div>
 
   <dialog id="settingsModal" class="modal">
@@ -172,7 +354,7 @@
           <span>API key</span>
           <input name="apiKey" id="setApiKey" type="password" placeholder="sk-… from platform.openai.com" />
         </label>
-        <p class="hint">Desktop fallback when Cursor is unavailable. Phone mic uses on-device speech.</p>
+        <p class="hint">Desktop fallback when Cursor is unavailable.</p>
       </div>
 
       <label>
@@ -186,14 +368,14 @@
       </label>
 
       <label>
-        <span>ElevenLabs API key (iPhone mic + spoken answers)</span>
+        <span>ElevenLabs API key (mic + spoken answers)</span>
         <input name="elevenLabsKey" id="setElevenKey" type="password" placeholder="From elevenlabs.io → Profile → API key" />
       </label>
       <label>
         <span>ElevenLabs voice id</span>
         <input name="elevenLabsVoiceId" id="setElevenVoice" placeholder="EXAVITQu4vr4xnSDxMaL" />
       </label>
-      <p class="hint">On iPhone this key powers mic transcription and spoken replies (auto after you talk).</p>
+      <p class="hint">On iPhone this key powers mic transcription and spoken replies.</p>
 
       <label class="check">
         <input type="checkbox" id="setConfirmShell" checked />
@@ -297,5 +479,6 @@
   <script src="native.js"></script>
   <script src="cursor-cloud.js"></script>
   <script src="app.js"></script>
+  <script src="ui.js"></script>
 </body>
 </html>

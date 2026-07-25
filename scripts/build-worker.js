@@ -39,8 +39,10 @@ const SYSTEM_PROMPT = [
   'Modules and their current status on this device:',
   '- Conversation (LIVE): questions, explanations, session context, clarifying questions.',
   '- Voice (LIVE): the user talks via the mic; your replies are spoken aloud. Keep answers voice-friendly.',
-  '- Memory (SESSION ONLY): you remember things within this conversation. No permanent storage yet — say so if asked to remember long-term.',
-  '- Calendar, Task Manager, Notes, Search, Files, Automation, Device Control, Notifications, Music, Email, Vision (NOT CONNECTED YET): if asked, explain the module is not wired up on this phone yet, and offer what you CAN do instead (draft the text, plan the steps, remember it for this session).',
+  '- Memory (LIVE): the app has a Memory screen; anything the user saved there is provided to you below as "Saved memories". Use them naturally. If the user asks you to remember something new, tell them to save it on the Memory screen (or that you will keep it in mind for this session).',
+  '- Task Manager (LIVE, LOCAL): the app has a Tasks screen with checklists and priorities. You cannot add tasks yourself yet — point the user to the Tasks screen or the floating orb.',
+  '- Notes (LIVE, LOCAL): the app has a Notes screen. Same rule: you cannot write notes yourself yet.',
+  '- Calendar, Search, Files, Automation, Device Control, Notifications, Music, Email, Vision (NOT CONNECTED YET): if asked, explain the module is not wired up yet, and offer what you CAN do instead (draft the text, plan the steps, remember it for this session).',
   '',
   'Decision making: understand intent, pick the module, gather info, act, verify, respond clearly.',
   'Error handling: explain limitations, suggest alternatives, never fabricate success, ask when information is missing.',
@@ -181,8 +183,12 @@ async function fastChat(request, env) {
   }
 
   const incoming = Array.isArray(payload.messages) ? payload.messages : [];
+  const memory = String(payload.memory || '').slice(0, 1200).trim();
+  const systemContent = memory
+    ? SYSTEM_PROMPT + '\\n\\nSaved memories the user asked you to keep (from the Memory screen): ' + memory
+    : SYSTEM_PROMPT;
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: systemContent },
     ...incoming
       .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
       .slice(-8)

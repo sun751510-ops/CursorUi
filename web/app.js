@@ -290,7 +290,8 @@
             body: JSON.stringify({
               messages: messages
                 .filter((m) => m.role === 'user' || m.role === 'assistant')
-                .slice(-8)
+                .slice(-8),
+              memory: window.CwayMemory?.text?.() || ''
             }),
             signal: ctrl.signal
           });
