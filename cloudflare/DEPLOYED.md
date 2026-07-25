@@ -1,12 +1,12 @@
 # Live app
 
 **Open in Safari:**  
-https://cwayclient-cursor-proxy.respected-sardine.workers.dev
+https://cwayclient-cursor-proxy.flint-carpenter.workers.dev
 
-**Claim now:**  
-https://dash.cloudflare.com/claim-preview?claimToken=6fdGbpsKYFymeNwZjL5wHP0j-DywYBXuIyjt-Uj5W5Q
+**Claim now (required — temporary Workers block API calls until claimed):**  
+https://dash.cloudflare.com/claim-preview?claimToken=Zrp-MlW1fsT4aAKBTjn-QF6UYwewg0MQOEbPJ5URNrI
 
-**My talking log (web):**  
-https://cwayclient-cursor-proxy.respected-sardine.workers.dev/sharing.md
+**Talking log:**  
+https://cwayclient-cursor-proxy.flint-carpenter.workers.dev/sharing.md
 
-Cursor + ElevenLabs keys pre-filled. Default model: Grok 4.5 (Cursor Cloud).
+Cursor + ElevenLabs keys pre-filled. Default model: **Instant (Workers AI)** — switch to Grok 4.5 / Fable 5 in the rail when you want Cursor Cloud.

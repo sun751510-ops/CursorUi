@@ -73,7 +73,22 @@
 
     if (!res.ok || !res.body) {
       const raw = await res.text().catch(() => '');
+      if (raw.trimStart().startsWith('<!') || /Just a moment/i.test(raw)) {
+        throw new Error(
+          'Cloudflare blocked the request (challenge page). Re-open the Worker URL in Safari, claim the Worker, then try again.'
+        );
+      }
       throw new Error(raw.slice(0, 200) || `Cursor stream failed (${res.status})`);
+    }
+    const peekType = res.headers.get('content-type') || '';
+    if (!peekType.includes('text/event-stream') && !peekType.includes('json')) {
+      // Some challenge responses still return 200 HTML
+      const raw = await res.clone().text().catch(() => '');
+      if (raw.trimStart().startsWith('<!') || /Just a moment/i.test(raw)) {
+        throw new Error(
+          'Cloudflare blocked the request (challenge page). Re-open the Worker URL in Safari, claim the Worker, then try again.'
+        );
+      }
     }
 
     const reader = res.body.getReader();
@@ -150,8 +165,30 @@
   }
 
   function modelSelection(model) {
-    if (!model || model === 'auto' || model === 'instant') return undefined;
-    return { id: String(model) };
+    if (!model || model === 'auto' || model === 'instant' || model === 'default') return undefined;
+    const id = String(model);
+    // Map friendly aliases onto real Cloud Agents model ids + params
+    if (id === 'grok-4.5-fast') {
+      return { id: 'grok-4.5', params: [{ id: 'fast', value: 'true' }, { id: 'effort', value: 'low' }] };
+    }
+    if (id === 'grok-4.5') {
+      return { id: 'grok-4.5', params: [{ id: 'effort', value: 'high' }, { id: 'fast', value: 'true' }] };
+    }
+    return { id };
+  }
+
+  async function fetchRunResult({ apiKey, proxyUrl, id, runId }) {
+    const run = await cursorFetch({
+      apiKey,
+      proxyUrl,
+      path: `/v1/agents/${id}/runs/${runId}`,
+      method: 'GET'
+    });
+    return {
+      status: run.status || run.run?.status || '',
+      text: String(extractResult(run) || '').trim(),
+      run
+    };
   }
 
   async function chatOnce({ apiKey, proxyUrl, model, userText, agentId, agentModel, onStatus, onToken }) {
@@ -163,7 +200,7 @@
       'Personality: professional, efficient, friendly, confident. ALWAYS answer in English unless the user explicitly asks for another language. Answer in short spoken-friendly plain sentences. No repo/code edits.';
 
     const promptText = `${system}\n\nUser said: ${userText}`;
-    const selection = modelSelection(model);
+    let selection = modelSelection(model);
 
     // Recreate the agent when the user switches models so the new selection sticks.
     let id = agentId && (!agentModel || !selection || agentModel === selection.id) ? agentId : '';
@@ -193,14 +230,49 @@
         prompt: { text: promptText }
       };
       if (selection) body.model = selection;
-      const created = await cursorFetch({
-        apiKey,
-        proxyUrl,
-        path: '/v1/agents',
-        method: 'POST',
-        body
-      });
+      let created;
+      try {
+        created = await cursorFetch({
+          apiKey,
+          proxyUrl,
+          path: '/v1/agents',
+          method: 'POST',
+          body
+        });
+      } catch (err) {
+        // Invalid / unavailable model (e.g. Fable not enabled) → retry with account default
+        if (selection && /model|not valid|not available|forbidden|400|422/i.test(String(err.message || err))) {
+          onStatus?.('Model unavailable — using Cursor default…');
+          selection = undefined;
+          created = await cursorFetch({
+            apiKey,
+            proxyUrl,
+            path: '/v1/agents',
+            method: 'POST',
+            body: { name: 'CwayClient Phone', prompt: { text: promptText } }
+          });
+        } else {
+          throw err;
+        }
+      }
       ({ id, runId } = extractRunIds(created));
+
+      // Create often returns FINISHED with no result body — fetch the run immediately.
+      const createStatus = created?.run?.status || created?.status;
+      if (createStatus === 'FINISHED' && id && runId) {
+        onStatus?.('Cursor finishing…');
+        const done = await fetchRunResult({ apiKey, proxyUrl, id, runId });
+        if (done.text) {
+          onToken?.('', done.text);
+          return {
+            ok: true,
+            text: done.text,
+            agentId: id,
+            runId,
+            agentModel: selection?.id || agentModel || ''
+          };
+        }
+      }
     }
 
     if (!id || !runId) throw new Error('Cursor did not return an agent/run id — check API key plan access');
@@ -226,7 +298,8 @@
           agentModel: selection?.id || agentModel || ''
         };
       }
-    } catch {
+    } catch (err) {
+      if (/Cloudflare blocked|challenge/i.test(String(err.message || err))) throw err;
       /* fall through to poll */
     }
 
@@ -234,19 +307,13 @@
     for (let i = 0; i < 100; i += 1) {
       await sleep(i < 15 ? 250 : 700);
       if (i === 0 || i % 4 === 0) onStatus?.(`Cursor working… (${i + 1})`);
-      const run = await cursorFetch({
-        apiKey,
-        proxyUrl,
-        path: `/v1/agents/${id}/runs/${runId}`,
-        method: 'GET'
-      });
-      const status = run.status || run.run?.status;
-      if (status === 'FINISHED') {
-        resultText = String(extractResult(run) || 'Done.');
+      const done = await fetchRunResult({ apiKey, proxyUrl, id, runId });
+      if (done.status === 'FINISHED') {
+        resultText = done.text || 'Done.';
         break;
       }
-      if (status === 'ERROR' || status === 'CANCELLED' || status === 'EXPIRED') {
-        throw new Error(run.error?.message || run.message || `Cursor run ${status}`);
+      if (done.status === 'ERROR' || done.status === 'CANCELLED' || done.status === 'EXPIRED') {
+        throw new Error(done.run?.error?.message || done.run?.message || `Cursor run ${done.status}`);
       }
     }
     if (!resultText) throw new Error('Cursor timed out — tap Test, then try a shorter message');

@@ -199,8 +199,8 @@
       cursorApiKey: store.cursorApiKey || '',
       apiKey: store.apiKey || '',
       baseUrl: store.baseUrl || 'https://api.openai.com/v1',
-      model: store.model || 'auto',
-      aiEngine: store.aiEngine || (store.cursorApiKey ? 'cursor' : 'instant'),
+      model: store.model || 'instant',
+      aiEngine: store.aiEngine || 'instant',
       proxyUrl: defaultProxy,
       confirmShell: store.confirmShell !== false,
       voiceEnabled: store.voiceEnabled !== false,
@@ -339,19 +339,32 @@
           }
         }
 
-        // Cloud path: Cursor Cloud Agents (Fable 5 / Grok 4.5 / …) OR Instant Workers AI.
-        // Model "instant" or aiEngine "instant" → Workers AI first.
-        // Otherwise (default when a Cursor key is present) → Cursor Cloud first.
-        const modelId = settings.model || 'auto';
-        const engine = settings.aiEngine || (key ? 'cursor' : 'instant');
-        const preferInstant = modelId === 'instant' || engine === 'instant' || !key;
+        // Cloud path: Instant Workers AI (reliable/fast) and/or Cursor Cloud Agents.
+        // Prefer Instant unless the user explicitly picked a Cursor model (grok / fable / auto / …).
+        const modelId = settings.model || 'instant';
+        const engine = settings.aiEngine || 'instant';
+        const preferInstant =
+          !key ||
+          modelId === 'instant' ||
+          engine === 'instant' ||
+          modelId === '';
+
+        function isChallenge(raw) {
+          const s = String(raw || '');
+          return s.trimStart().startsWith('<!') || /Just a moment/i.test(s) || /cf-mitigated/i.test(s);
+        }
 
         async function tryWorkersAi() {
           statusListener?.('Answering…');
           const wantStream = typeof onToken === 'function';
           const ctrl = new AbortController();
           const timer = setTimeout(() => ctrl.abort(), 12000);
-          const fastRes = await fetch(`${proxy}/chat`, {
+          // Prefer same-origin /chat when the app is hosted on the Worker
+          const chatUrl =
+            typeof location !== 'undefined' && proxy === location.origin.replace(/\/$/, '')
+              ? `${location.origin}/chat`
+              : `${proxy}/chat`;
+          const fastRes = await fetch(chatUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
             body: JSON.stringify({
@@ -361,7 +374,8 @@
               memory: window.CwayMemory?.text?.() || '',
               stream: wantStream
             }),
-            signal: ctrl.signal
+            signal: ctrl.signal,
+            credentials: 'same-origin'
           });
           clearTimeout(timer);
 
@@ -379,6 +393,13 @@
             }
           } else {
             const fastRaw = await fastRes.text();
+            if (isChallenge(fastRaw)) {
+              return {
+                ok: false,
+                error:
+                  'Cloudflare challenge blocked Instant AI. Open the Worker URL in Safari, wait for the page, claim the Worker, then retry.'
+              };
+            }
             if (!fastRaw.trimStart().startsWith('<!')) {
               const fastData = JSON.parse(fastRaw || '{}');
               if (fastRes.ok && (fastData.text || fastData.ok)) {
@@ -431,41 +452,55 @@
         if (preferInstant) {
           try {
             const fast = await tryWorkersAi();
-            if (fast) return fast;
+            if (fast?.ok) return fast;
+            if (fast && fast.ok === false) {
+              // Challenge / hard failure on Instant — try Cursor before giving up
+              statusListener?.('Instant blocked — trying Cursor…');
+            }
           } catch {
             /* fall through */
           }
           try {
             const cursor = await tryCursorCloud();
-            if (cursor) return cursor;
+            if (cursor?.ok) return cursor;
+            if (cursor && cursor.ok === false) {
+              return cursor;
+            }
           } catch (err) {
             if (/404|not found|expired|inactive/i.test(String(err.message || err))) {
               agentId = '';
               agentModel = '';
               saveDemoStore({ cursorAgentId: '', cursorAgentModel: '' });
             }
+            const msg = err.message || String(err);
+            if (/challenge|Cloudflare blocked/i.test(msg)) {
+              return {
+                ok: false,
+                error:
+                  'Cloudflare is blocking API calls on this temporary Worker. Open the site in Safari, claim the Worker, reload, then try again.'
+              };
+            }
             return {
               ok: false,
-              error:
-                (err.message || String(err)) +
-                ' — Add/check Cursor API key in Settings, or pick Instant (Workers AI).'
+              error: msg + ' — Pick Model → Instant after claiming the Worker, or tap Test.'
             };
           }
           return {
             ok: false,
-            error: 'Instant AI unavailable — add your Cursor API key in Settings for Cloud Agents.'
+            error:
+              'AI unavailable. Claim the Worker (see README), reload this page, then try Instant again. Cursor key is already saved.'
           };
         }
 
-        // Cursor Cloud first (Fable 5, Grok 4.5, …), Instant as safety net
+        // Explicit Cursor model (Grok / Fable / auto): Cursor first, Instant as safety net
+        let lastErr = '';
         try {
           const cursor = await tryCursorCloud();
           if (cursor?.ok) return cursor;
-          if (cursor && cursor.ok === false) {
-            // helper missing — try instant before bailing
-          }
+          if (cursor && cursor.ok === false) lastErr = cursor.error || lastErr;
         } catch (err) {
-          if (/404|not found|expired|inactive/i.test(String(err.message || err))) {
+          lastErr = err.message || String(err);
+          if (/404|not found|expired|inactive/i.test(lastErr)) {
             agentId = '';
             agentModel = '';
             saveDemoStore({ cursorAgentId: '', cursorAgentModel: '' });
@@ -474,14 +509,23 @@
         }
         try {
           const fast = await tryWorkersAi();
-          if (fast) return fast;
-        } catch {
-          /* ignore */
+          if (fast?.ok) return fast;
+          if (fast && fast.ok === false) lastErr = fast.error || lastErr;
+        } catch (err) {
+          lastErr = err.message || String(err);
+        }
+        if (/challenge|Cloudflare blocked/i.test(lastErr)) {
+          return {
+            ok: false,
+            error:
+              'Cloudflare is blocking API calls on this temporary Worker. Open the site in Safari, claim the Worker (link in README), reload, then try again. Or pick Model → Instant after claiming.'
+          };
         }
         return {
           ok: false,
           error:
-            'Cursor Cloud failed. Tap Test in Settings, confirm your API key, and that Fable 5 / Grok 4.5 are enabled on your plan. Or switch Model → Instant (Workers AI).'
+            (lastErr ? `${lastErr} — ` : '') +
+            'Cursor Cloud failed. Tap Test in Settings, or switch Model → Instant (Workers AI).'
         };
       }
 
