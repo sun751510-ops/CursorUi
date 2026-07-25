@@ -63,10 +63,12 @@
     commandModal: document.getElementById('commandModal'),
     runModal: document.getElementById('runModal'),
     answerModeModal: document.getElementById('answerModeModal'),
+    speechPermModal: document.getElementById('speechPermModal'),
     settingsForm: document.getElementById('settingsForm'),
     commandForm: document.getElementById('commandForm'),
     runForm: document.getElementById('runForm'),
     answerModeForm: document.getElementById('answerModeForm'),
+    speechPermForm: document.getElementById('speechPermForm'),
     runFields: document.getElementById('runFields'),
     runTitle: document.getElementById('runTitle'),
     runDesc: document.getElementById('runDesc'),
@@ -550,26 +552,46 @@
     return '';
   }
 
-  function askAnswerMode() {
+  function askDialogChoice(modal, allowedValues, fallback) {
     return new Promise((resolve) => {
-      const modal = els.answerModeModal;
       if (!modal) {
-        resolve('typed');
+        resolve(fallback);
         return;
       }
       const onClose = () => {
         modal.removeEventListener('close', onClose);
-        const val = modal.returnValue === 'spoken' ? 'spoken' : 'typed';
-        resolve(val);
+        const val = String(modal.returnValue || '');
+        resolve(allowedValues.includes(val) ? val : fallback);
       };
       modal.addEventListener('close', onClose);
       try {
-        modal.returnValue = 'typed';
+        modal.returnValue = fallback;
         modal.showModal();
       } catch {
-        resolve('typed');
+        resolve(fallback);
       }
     });
+  }
+
+  function askAnswerMode() {
+    return askDialogChoice(els.answerModeModal, ['typed', 'spoken'], 'typed');
+  }
+
+  async function ensureSpeechPermission() {
+    const saved = localStorage.getItem('cway-speech-perm');
+    if (saved === 'allow') return true;
+    setStatus('Allow speech recognition?');
+    const choice = await askDialogChoice(els.speechPermModal, ['allow', 'deny'], 'deny');
+    localStorage.setItem('cway-speech-perm', choice);
+    if (choice !== 'allow') {
+      setStatus('Speech off — type instead');
+      appendMessage({
+        role: 'system',
+        content: 'No problem — type below. Tap the mic again anytime and choose **Allow** for speech recognition.'
+      });
+      return false;
+    }
+    return true;
   }
 
   async function sendAfterVoice(text) {
@@ -1180,6 +1202,8 @@
             }, 300);
             return;
           }
+          const allowed = await ensureSpeechPermission();
+          if (!allowed) return;
           const ok = await primeMic();
           if (!ok) {
             setStatus('Allow Microphone, then tap mic again');
@@ -1192,6 +1216,7 @@
           }
           try {
             setListeningUi(true);
+            setStatus('Listening… speak, then tap mic again');
             rec.start();
           } catch {
             setStatus('Mic busy — tap again');
@@ -1200,8 +1225,8 @@
         }
 
         els.micBtn.classList.remove('disabled');
-        els.micBtn.title = 'Tap to talk · tap again to send';
-        els.orbBtn.title = 'Tap to talk · tap again to send';
+        els.micBtn.title = 'Tap to talk · asks for speech recognition';
+        els.orbBtn.title = 'Tap to talk · asks for speech recognition';
         els.micBtn.addEventListener('click', toggleSpeech);
         els.orbBtn.addEventListener('click', toggleSpeech);
         state.voiceSupported = true;
@@ -1291,7 +1316,11 @@
         }, 300);
         return;
       }
+      const allowed = await ensureSpeechPermission();
+      if (!allowed) return;
       try {
+        setListeningUi(true);
+        setStatus('Listening… speak, then tap mic again');
         rec.start();
       } catch {
         setStatus('Mic busy — tap again');
@@ -1299,8 +1328,8 @@
       }
     }
 
-    els.micBtn.title = 'Tap to talk · tap again to send';
-    els.orbBtn.title = 'Tap to talk · tap again to send';
+    els.micBtn.title = 'Tap to talk · asks for speech recognition';
+    els.orbBtn.title = 'Tap to talk · asks for speech recognition';
     els.micBtn.addEventListener('click', toggleListen);
     els.orbBtn.addEventListener('click', toggleListen);
   }

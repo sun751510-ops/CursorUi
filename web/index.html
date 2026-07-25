@@ -212,6 +212,22 @@
     </form>
   </dialog>
 
+  <dialog id="speechPermModal" class="modal">
+    <form method="dialog" class="modal-card answer-mode-card" id="speechPermForm">
+      <header>
+        <h3>Use speech recognition?</h3>
+      </header>
+      <p class="hint answer-mode-hint">
+        CwayClient needs speech recognition to turn your voice into text.
+        iPhone may also ask for Microphone access next.
+      </p>
+      <div class="answer-mode-actions">
+        <button type="submit" value="deny" class="ghost-btn answer-mode-btn">Not now</button>
+        <button type="submit" value="allow" class="primary-btn answer-mode-btn">Allow</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="answerModeModal" class="modal">
     <form method="dialog" class="modal-card answer-mode-card" id="answerModeForm">
       <header>
