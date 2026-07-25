@@ -1,0 +1,26 @@
+---
+description: Read and maintain the user's AI expectations profile
+alwaysApply: true
+---
+
+# AI Expectations Maintenance
+
+## Required reading
+Before non-trivial work, read `/AI_EXPECTATIONS.md` and follow it.
+
+## Communication defaults from that file
+- Clarity and concision; action-first replies
+- Infer intent from short/typo-prone messages
+- Mobile-aware (working links near the top)
+- Halt immediately on “Stop”
+
+## Auto-update duty
+When the user expresses a new preference, correction, recurring pattern, tone/language requirement, or workflow expectation:
+
+1. Update `/AI_EXPECTATIONS.md` in the matching section
+2. Bump **Last updated**
+3. Add a one-line entry under **Changelog**
+4. Keep the file clear, concise, and table-friendly
+
+Do not wait to be asked if the preference is clear and durable.
+Do not store secrets in that file.

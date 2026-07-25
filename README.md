@@ -2,6 +2,11 @@
 
 Desktop-style macro automation editor UI in a single self-contained `index.html`.
 
+## AI expectations
+
+Living preferences for tone, intent, and workflow: [`AI_EXPECTATIONS.md`](./AI_EXPECTATIONS.md)  
+(Auto-maintained via `.cursor/rules/update-ai-expectations.mdc`.)
+
 ## Open on phone / browser
 
 **Fastest (works now):**  
