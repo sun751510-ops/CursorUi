@@ -577,21 +577,65 @@
     return askDialogChoice(els.answerModeModal, ['typed', 'spoken'], 'typed');
   }
 
-  async function ensureSpeechPermission() {
-    const saved = localStorage.getItem('cway-speech-perm');
-    if (saved === 'allow') return true;
-    setStatus('Allow speech recognition?');
-    const choice = await askDialogChoice(els.speechPermModal, ['allow', 'deny'], 'deny');
-    localStorage.setItem('cway-speech-perm', choice);
-    if (choice !== 'allow') {
-      setStatus('Speech off — type instead');
-      appendMessage({
-        role: 'system',
-        content: 'No problem — type below. Tap the mic again anytime and choose **Allow** for speech recognition.'
-      });
-      return false;
+  function speechConsent() {
+    return localStorage.getItem('cway-speech-perm');
+  }
+
+  function setSpeechConsent(value) {
+    localStorage.setItem('cway-speech-perm', value);
+  }
+
+  function denySpeechMessage() {
+    setStatus('Speech off — type instead');
+    appendMessage({
+      role: 'system',
+      content:
+        'No problem — type below. Tap the mic again anytime and choose **Allow** for speech recognition.'
+    });
+  }
+
+  /**
+   * Ask once for in-app speech consent. On Allow, starts listening inside that tap
+   * (iOS requires SpeechRecognition.start / getUserMedia in the same user gesture).
+   */
+  function ensureSpeechPermissionThen(startListening) {
+    const saved = speechConsent();
+    if (saved === 'allow') {
+      startListening();
+      return;
     }
-    return true;
+    if (saved === 'deny') {
+      denySpeechMessage();
+      return;
+    }
+    if (!els.speechPermModal || !els.speechPermForm) {
+      setSpeechConsent('allow');
+      startListening();
+      return;
+    }
+
+    setStatus('Allow speech recognition?');
+    const onClick = (e) => {
+      const btn = e.target.closest('button[value]');
+      if (!btn) return;
+      const choice = btn.value === 'allow' ? 'allow' : 'deny';
+      setSpeechConsent(choice);
+      els.speechPermForm.removeEventListener('click', onClick, true);
+      if (choice === 'allow') {
+        // Still inside the Allow tap — start before the dialog closes.
+        startListening();
+      } else {
+        denySpeechMessage();
+      }
+    };
+    els.speechPermForm.addEventListener('click', onClick, true);
+    try {
+      els.speechPermModal.returnValue = 'deny';
+      els.speechPermModal.showModal();
+    } catch {
+      setSpeechConsent('allow');
+      startListening();
+    }
   }
 
   async function sendAfterVoice(text) {
@@ -1046,262 +1090,280 @@
       return;
     }
 
-    // Browser / iPhone PWA — MediaRecorder works on Safari; Web Speech often does not
+    // Browser / iPhone — prefer MediaRecorder+STT on iOS (Web Speech often false-blocks)
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
     const canRecord =
       Boolean(navigator.mediaDevices?.getUserMedia) &&
       typeof MediaRecorder !== 'undefined' &&
       (window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost');
-
-    function whisperKey() {
-      try {
-        const store = JSON.parse(localStorage.getItem('cwayclient-demo') || '{}');
-        if (store.apiKey) return store.apiKey;
-      } catch {
-        /* ignore */
-      }
-      const fromState = state.settings?.apiKey;
-      if (fromState && fromState !== '••••••••') return fromState;
-      return '';
-    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     function pickMime() {
       const types = ['audio/mp4', 'audio/aac', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'];
       return types.find((t) => MediaRecorder.isTypeSupported?.(t)) || '';
     }
 
-    async function transcribeBlob(blob) {
-      const key = whisperKey();
-      if (!key) return null;
-      const base = (state.settings.baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
-      // Whisper lives on OpenAI; if user pointed baseUrl elsewhere, still try OpenAI default for audio
-      const url = base.includes('openai.com')
-        ? `${base}/audio/transcriptions`
-        : 'https://api.openai.com/v1/audio/transcriptions';
-      const ext = (blob.type || '').includes('mp4') ? 'mp4' : (blob.type || '').includes('webm') ? 'webm' : 'm4a';
+    async function transcribeWithEleven(blob) {
+      const key = rawElevenKey();
+      const proxy = proxyBase();
+      if (!key || !proxy) return null;
+      const ext = (blob.type || '').includes('webm')
+        ? 'webm'
+        : (blob.type || '').includes('ogg')
+          ? 'ogg'
+          : 'm4a';
       const form = new FormData();
       form.append('file', blob, `cway.${ext}`);
-      form.append('model', 'whisper-1');
-      const res = await fetch(url, {
+      form.append('model_id', 'scribe_v1');
+      const res = await fetch(`${proxy}/stt`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${key}` },
+        headers: { 'x-elevenlabs-key': key },
         body: form
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error?.message || `Transcribe failed (${res.status})`);
-      return (data.text || '').trim();
+      if (!res.ok) throw new Error(data.error || data.detail?.message || `STT failed (${res.status})`);
+      return String(data.text || '').trim();
     }
 
-    // iPhone / Safari: on-device Web Speech (mic permission alone is not enough)
-    const SRPhone = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-    if (isIOS || SRPhone) {
-      if (SRPhone) {
-        const rec = new SRPhone();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = navigator.language || 'en-US';
-        let finalText = '';
-        let hadResult = false;
-        let ignoreErrors = false;
-        let micPrimed = false;
+    // Shared MediaRecorder engine (reliable on iPhone once Microphone is allowed)
+    let mediaStream = null;
+    let recorder = null;
+    let chunks = [];
+    let mime = '';
+    let forceRecorder = false;
 
-        async function primeMic() {
-          if (micPrimed || !navigator.mediaDevices?.getUserMedia) return true;
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach((t) => t.stop());
-            micPrimed = true;
-            return true;
-          } catch {
-            return false;
-          }
-        }
-
-        rec.onstart = () => {
-          finalText = '';
-          hadResult = false;
-          setListeningUi(true);
-          setStatus('Listening… speak, then tap mic again');
-        };
-        rec.onresult = (e) => {
-          let interim = '';
-          for (let i = e.resultIndex; i < e.results.length; i += 1) {
-            const t = e.results[i][0].transcript;
-            if (e.results[i].isFinal) {
-              finalText += `${t} `;
-              hadResult = true;
-            } else {
-              interim += t;
-              hadResult = true;
-            }
-          }
-          els.prompt.value = (finalText || interim).trim();
-          autoGrow();
-        };
-        rec.onerror = (e) => {
-          const code = e?.error || '';
-          if (code === 'aborted' || ignoreErrors) {
-            setListeningUi(false);
-            return;
-          }
-          if (code === 'no-speech') {
-            setListeningUi(false);
-            setStatus('No speech heard — tap mic and try again');
-            return;
-          }
-          setListeningUi(false);
-          setStatus('Speech blocked — type instead');
-          appendMessage({
-            role: 'system',
-            content:
-              (code === 'not-allowed' || code === 'service-not-allowed'
-                ? 'iPhone blocked speech recognition. '
-                : `Speech error (${code}). `) +
-              (isStandalone
-                ? 'Open this site in **Safari** (not only the Home Screen icon), allow Microphone + Speech Recognition, then try the mic again. Or just **type** — AI still works.'
-                : 'In iOS Settings → Safari → allow Microphone. Also Settings → CwayClient / Safari → Speech Recognition if shown. Or **type** your message.')
-          });
-        };
-        rec.onend = () => {
-          if (state.listening && !ignoreErrors) {
-            // iOS often ends recognition early — restart while mic is still hot
-            try {
-              rec.start();
-              return;
-            } catch {
-              /* fall through */
-            }
-          }
-          const wasListening = state.listening;
-          setListeningUi(false);
-          if (state.busy || ignoreErrors || !wasListening) return;
-          const text = (finalText || els.prompt.value).trim();
-          if (text && hadResult) sendAfterVoice(text);
-          else idleStatus();
-        };
-
-        async function toggleSpeech(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (state.busy) return;
-          if (state.listening) {
-            ignoreErrors = true;
-            try {
-              rec.stop();
-            } catch {
-              /* ignore */
-            }
-            setListeningUi(false);
-            const text = (finalText || els.prompt.value).trim();
-            if (text && hadResult) await sendAfterVoice(text);
-            else idleStatus();
-            setTimeout(() => {
-              ignoreErrors = false;
-            }, 300);
-            return;
-          }
-          const allowed = await ensureSpeechPermission();
-          if (!allowed) return;
-          const ok = await primeMic();
-          if (!ok) {
-            setStatus('Allow Microphone, then tap mic again');
-            appendMessage({
-              role: 'system',
-              content:
-                'Microphone permission denied. iOS Settings → Safari (or CwayClient) → Microphone → Allow, then reload and try again. You can also type.'
-            });
-            return;
-          }
-          try {
-            setListeningUi(true);
-            setStatus('Listening… speak, then tap mic again');
-            rec.start();
-          } catch {
-            setStatus('Mic busy — tap again');
-            setListeningUi(false);
-          }
-        }
-
-        els.micBtn.classList.remove('disabled');
-        els.micBtn.title = 'Tap to talk · asks for speech recognition';
-        els.orbBtn.title = 'Tap to talk · asks for speech recognition';
-        els.micBtn.addEventListener('click', toggleSpeech);
-        els.orbBtn.addEventListener('click', toggleSpeech);
-        state.voiceSupported = true;
+    async function finishRecording() {
+      const blob = new Blob(chunks, { type: mime || 'audio/mp4' });
+      chunks = [];
+      mediaStream?.getTracks().forEach((t) => t.stop());
+      mediaStream = null;
+      recorder = null;
+      if (!blob.size) {
+        setStatus('No audio captured — try again');
         return;
       }
-
-      els.micBtn.classList.remove('disabled');
-      els.micBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        setStatus('Type your message — speech not available here');
+      if (!rawElevenKey()) {
+        setStatus('Add ElevenLabs key for iPhone mic');
         appendMessage({
           role: 'system',
           content:
-            'On-device speech isn’t available in this browser. **Type** below — with Cursor API key + Proxy URL it still answers.'
+            'Safari blocked on-device speech, so CwayClient records your voice instead. Settings → paste your **ElevenLabs API key** → Save, then tap the mic again. Or just **type**.'
         });
-      });
-      return;
-    }
-
-    // Desktop Chrome etc. — Web Speech API
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR || !canRecord) {
-      els.micBtn.classList.add('disabled');
-      return;
-    }
-
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = true;
-    rec.lang = navigator.language || 'en-US';
-    let finalText = '';
-    let hadResult = false;
-    let ignoreErrors = false;
-
-    rec.onstart = () => {
-      finalText = '';
-      hadResult = false;
-      setListeningUi(true);
-    };
-    rec.onresult = (e) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i += 1) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          finalText += `${t} `;
-          hadResult = true;
-        } else interim += t;
-      }
-      els.prompt.value = (finalText || interim).trim();
-      autoGrow();
-    };
-    rec.onerror = (e) => {
-      const code = e?.error || 'unknown';
-      if (code === 'aborted' || code === 'no-speech' || ignoreErrors) {
-        setListeningUi(false);
-        if (!hadResult) idleStatus();
         return;
       }
-      setListeningUi(false);
-      setStatus('Voice unavailable — type instead');
-    };
-    rec.onend = () => {
-      setListeningUi(false);
-      if (state.busy || ignoreErrors) return;
-      const text = (finalText || els.prompt.value).trim();
-      if (text && hadResult) sendAfterVoice(text);
-      else idleStatus();
-    };
+      if (!proxyBase()) {
+        setStatus('Set Proxy URL for voice');
+        return;
+      }
+      setStatus('Transcribing…');
+      setOrb('thinking');
+      try {
+        const text = await transcribeWithEleven(blob);
+        if (text) {
+          els.prompt.value = text;
+          autoGrow();
+          await sendAfterVoice(text);
+        } else {
+          setStatus('Heard nothing — try again');
+          idleStatus();
+        }
+      } catch (err) {
+        setStatus('Transcription failed — type instead');
+        appendMessage({
+          role: 'system',
+          content: `${err?.message || 'Could not transcribe'}. Check ElevenLabs key, or **type** your message.`
+        });
+        idleStatus();
+      }
+    }
 
-    async function toggleListen(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (state.busy) return;
-      if (state.listening) {
+    function stopRecording() {
+      if (!recorder) {
+        setListeningUi(false);
+        return;
+      }
+      try {
+        if (recorder.state !== 'inactive') recorder.stop();
+      } catch {
+        setListeningUi(false);
+        finishRecording();
+      }
+    }
+
+    function startRecordingFromGesture() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus('Mic unavailable — type instead');
+        return;
+      }
+      // Must invoke getUserMedia in this turn (iOS user-gesture).
+      const gum = navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true }
+      });
+      setListeningUi(true);
+      setStatus('Listening… speak, then tap mic again');
+      gum
+        .then((stream) => {
+          mediaStream = stream;
+          chunks = [];
+          mime = pickMime();
+          recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+          mime = recorder.mimeType || mime || 'audio/mp4';
+          recorder.ondataavailable = (ev) => {
+            if (ev.data?.size) chunks.push(ev.data);
+          };
+          recorder.onerror = () => {
+            setListeningUi(false);
+            setStatus('Mic error — type instead');
+          };
+          recorder.onstop = () => {
+            setListeningUi(false);
+            finishRecording();
+          };
+          recorder.start(250);
+        })
+        .catch(() => {
+          setListeningUi(false);
+          setStatus('Allow Microphone, then tap mic again');
+          appendMessage({
+            role: 'system',
+            content:
+              'Microphone permission denied. iOS Settings → Safari (or CwayClient) → Microphone → Allow, then reload and try again. You can also type.'
+          });
+        });
+    }
+
+    function useRecorderNow() {
+      return Boolean(
+        canRecord && (forceRecorder || (isIOS && rawElevenKey() && proxyBase()))
+      );
+    }
+
+    if (SR) {
+      const rec = new SR();
+      rec.continuous = !isIOS;
+      rec.interimResults = true;
+      rec.lang = navigator.language || 'en-US';
+      let finalText = '';
+      let hadResult = false;
+      let ignoreErrors = false;
+      let restartTimer = null;
+
+      const clearRestart = () => {
+        if (restartTimer) {
+          clearTimeout(restartTimer);
+          restartTimer = null;
+        }
+      };
+
+      rec.onstart = () => {
+        setListeningUi(true);
+        setStatus('Listening… speak, then tap mic again');
+      };
+      rec.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i += 1) {
+          const t = e.results[i][0].transcript;
+          if (e.results[i].isFinal) {
+            finalText += `${t} `;
+            hadResult = true;
+          } else {
+            interim += t;
+            hadResult = true;
+          }
+        }
+        els.prompt.value = (finalText || interim).trim();
+        autoGrow();
+      };
+      rec.onerror = (e) => {
+        const code = e?.error || '';
+        if (code === 'aborted' || ignoreErrors) return;
+        if (code === 'no-speech') {
+          setListeningUi(false);
+          setStatus('No speech heard — tap mic and try again');
+          return;
+        }
+        setListeningUi(false);
+        clearRestart();
+        if (isIOS && canRecord && (code === 'not-allowed' || code === 'service-not-allowed')) {
+          forceRecorder = true;
+          setStatus('Safari blocked speech — using recorder');
+          appendMessage({
+            role: 'system',
+            content:
+              'Safari blocked on-device speech recognition (this happens often even when Microphone is **Allow**). ' +
+              'Tap the mic again — CwayClient will **record** your voice instead. Add an **ElevenLabs API key** in Settings to transcribe, or **type**.'
+          });
+          return;
+        }
+        setStatus('Speech blocked — type instead');
+        appendMessage({
+          role: 'system',
+          content:
+            (code === 'not-allowed' || code === 'service-not-allowed'
+              ? 'Safari blocked speech recognition. '
+              : `Speech error (${code}). `) +
+            (isStandalone
+              ? 'Open this site in **Safari** (not only the Home Screen icon), then try again — or **type**.'
+              : 'Add ElevenLabs in Settings for a reliable iPhone mic, or **type**.')
+        });
+      };
+      rec.onend = () => {
+        if (state.listening && !ignoreErrors && isIOS) {
+          clearRestart();
+          restartTimer = setTimeout(() => {
+            if (!state.listening || ignoreErrors) return;
+            try {
+              rec.start();
+            } catch {
+              /* ignore */
+            }
+          }, 280);
+          return;
+        }
+        if (state.listening && !ignoreErrors && !isIOS) {
+          try {
+            rec.start();
+            return;
+          } catch {
+            /* fall through */
+          }
+        }
+        const wasListening = state.listening;
+        setListeningUi(false);
+        clearRestart();
+        if (state.busy || ignoreErrors || !wasListening) return;
+        const text = (finalText || els.prompt.value).trim();
+        if (text && hadResult) sendAfterVoice(text);
+        else idleStatus();
+      };
+
+      function startWebSpeechFromGesture() {
+        // CRITICAL: no await before rec.start() — iOS otherwise reports not-allowed
+        // even when Microphone permission is already granted.
+        ignoreErrors = false;
+        finalText = '';
+        hadResult = false;
+        clearRestart();
+        try {
+          setListeningUi(true);
+          setStatus('Listening… speak, then tap mic again');
+          rec.start();
+        } catch {
+          setListeningUi(false);
+          if (canRecord) {
+            forceRecorder = true;
+            startRecordingFromGesture();
+            return;
+          }
+          setStatus('Mic busy — tap again');
+        }
+      }
+
+      function stopWebSpeech() {
         ignoreErrors = true;
+        clearRestart();
         try {
           rec.stop();
         } catch {
@@ -1309,29 +1371,69 @@
         }
         setListeningUi(false);
         const text = (finalText || els.prompt.value).trim();
-        if (text && hadResult) await sendAfterVoice(text);
+        if (text && hadResult) sendAfterVoice(text);
         else idleStatus();
         setTimeout(() => {
           ignoreErrors = false;
         }, 300);
-        return;
       }
-      const allowed = await ensureSpeechPermission();
-      if (!allowed) return;
-      try {
-        setListeningUi(true);
-        setStatus('Listening… speak, then tap mic again');
-        rec.start();
-      } catch {
-        setStatus('Mic busy — tap again');
-        setListeningUi(false);
+
+      function startFromGesture() {
+        if (useRecorderNow()) startRecordingFromGesture();
+        else startWebSpeechFromGesture();
       }
+
+      function toggleVoice(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (state.busy) return;
+        if (state.listening) {
+          if (recorder && recorder.state !== 'inactive') stopRecording();
+          else stopWebSpeech();
+          return;
+        }
+        ensureSpeechPermissionThen(startFromGesture);
+      }
+
+      els.micBtn.classList.remove('disabled');
+      els.micBtn.title = 'Tap to talk · asks for speech recognition';
+      els.orbBtn.title = 'Tap to talk · asks for speech recognition';
+      els.micBtn.addEventListener('click', toggleVoice);
+      els.orbBtn.addEventListener('click', toggleVoice);
+      state.voiceSupported = true;
+      return;
     }
 
-    els.micBtn.title = 'Tap to talk · asks for speech recognition';
-    els.orbBtn.title = 'Tap to talk · asks for speech recognition';
-    els.micBtn.addEventListener('click', toggleListen);
-    els.orbBtn.addEventListener('click', toggleListen);
+    if (canRecord) {
+      function toggleRecordOnly(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (state.busy) return;
+        if (state.listening) {
+          stopRecording();
+          return;
+        }
+        ensureSpeechPermissionThen(startRecordingFromGesture);
+      }
+      els.micBtn.classList.remove('disabled');
+      els.micBtn.title = 'Tap to talk · records audio';
+      els.orbBtn.title = 'Tap to talk · records audio';
+      els.micBtn.addEventListener('click', toggleRecordOnly);
+      els.orbBtn.addEventListener('click', toggleRecordOnly);
+      state.voiceSupported = true;
+      return;
+    }
+
+    els.micBtn.classList.remove('disabled');
+    els.micBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      setStatus('Type your message — speech not available here');
+      appendMessage({
+        role: 'system',
+        content:
+          'On-device speech isn’t available in this browser. **Type** below — with Cursor API key + Proxy URL it still answers.'
+      });
+    });
   }
 
   function syncProviderFields() {

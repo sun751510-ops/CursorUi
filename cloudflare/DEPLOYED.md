@@ -1,11 +1,11 @@
 # Live app
 
 **Open in Safari:**  
-https://cwayclient-cursor-proxy.gilded-ear.workers.dev
+https://cwayclient-cursor-proxy.obtainable-eyeliner.workers.dev
 
 **Claim now:**  
-https://dash.cloudflare.com/claim-preview?claimToken=tAjG6dEJd--cl7JD3Ep9-OgGvvk7kldejmvcFgumPls
+https://dash.cloudflare.com/claim-preview?claimToken=AFMv_wBiOKP-PznvtYN-KxMaIy3u9VtGDtIpcAHHpKw
 
-Cursor API key is pre-filled on first open. Still add ElevenLabs key in Settings for Spoken answers.
+Cursor API key is pre-filled on first open. Add ElevenLabs key in Settings for Spoken answers and for a reliable iPhone mic (Safari often blocks on-device speech even when Microphone is allowed).
 
-Mic flow: tap mic → **Allow** speech recognition → speak → stop → **Typed** or **Spoken**.
+Mic flow: tap mic → **Allow** → speak → stop → **Typed** or **Spoken**.

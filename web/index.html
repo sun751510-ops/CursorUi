@@ -187,14 +187,14 @@
       </label>
 
       <label>
-        <span>ElevenLabs API key (spoken answers)</span>
+        <span>ElevenLabs API key (iPhone mic + spoken answers)</span>
         <input name="elevenLabsKey" id="setElevenKey" type="password" placeholder="From elevenlabs.io → Profile → API key" />
       </label>
       <label>
         <span>ElevenLabs voice id</span>
         <input name="elevenLabsVoiceId" id="setElevenVoice" placeholder="21m00Tcm4TlvDq8ikWAM" />
       </label>
-      <p class="hint">After you stop the mic, CwayClient asks Typed or Spoken. Spoken uses ElevenLabs through your Worker.</p>
+      <p class="hint">On iPhone, this key makes the mic reliable (speech→text). After you stop, choose Typed or Spoken — Spoken also uses ElevenLabs.</p>
 
       <label class="check">
         <input type="checkbox" id="setConfirmShell" checked />
@@ -219,7 +219,7 @@
       </header>
       <p class="hint answer-mode-hint">
         CwayClient needs speech recognition to turn your voice into text.
-        iPhone may also ask for Microphone access next.
+        Tap Allow, then speak — Safari may also ask for Microphone.
       </p>
       <div class="answer-mode-actions">
         <button type="submit" value="deny" class="ghost-btn answer-mode-btn">Not now</button>
