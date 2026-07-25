@@ -9,13 +9,13 @@ Safari can’t call Cursor’s API directly (CORS). A free **Cloudflare Worker**
 ### Live app (already deployed)
 
 **Open this in Safari** (real webpage — not GitHub source):  
-https://cwayclient-cursor-proxy.almond-mountain.workers.dev  
+https://cwayclient-cursor-proxy.pitch-borogovia.workers.dev  
 
 If you see “Just a moment…”, wait a second — then CwayClient appears.  
 Share → **Add to Home Screen**. Proxy URL is auto-filled to this same site.
 
 **Claim into your Cloudflare account now** (preview dies if you don’t):  
-https://dash.cloudflare.com/claim-preview?claimToken=wp9Sk-bUraZP7QqgNwRx3nK-yCViBt8S-X6S_-uLMvg  
+https://dash.cloudflare.com/claim-preview?claimToken=qoixcsmmrAPzF2St_GpZW9jXUtqYQ3pozDuJObMxGjU  
 
 Settings: Cursor API key + **ElevenLabs API key** (spoken answers).  
 Mic: tap → speak → tap again → choose **Typed** or **Spoken** → reply starts right away (Spoken uses ElevenLabs).

@@ -14,6 +14,17 @@ const native = fs.readFileSync(path.join(web, 'native.js'), 'utf8');
 const cloud = fs.readFileSync(path.join(web, 'cursor-cloud.js'), 'utf8');
 const app = fs.readFileSync(path.join(web, 'app.js'), 'utf8');
 
+let defaults = {};
+const secretsPath = path.join(root, 'secrets.local.json');
+if (fs.existsSync(secretsPath)) {
+  try {
+    defaults = JSON.parse(fs.readFileSync(secretsPath, 'utf8'));
+  } catch (err) {
+    console.warn('Could not read secrets.local.json:', err.message);
+  }
+}
+const defaultsScript = `window.CWAY_DEFAULTS = ${JSON.stringify(defaults)};`;
+
 let html = index
   .replace(/<link rel="manifest"[^>]*>\s*/g, '')
   .replace(/<link rel="apple-touch-icon"[^>]*>\s*/g, '')
@@ -21,7 +32,7 @@ let html = index
   .replace(/<link rel="stylesheet" href="styles\.css"\s*\/?>/, `<style>\n${css}\n</style>`)
   .replace(
     /<script src="native\.js"><\/script>\s*<script src="cursor-cloud\.js"><\/script>\s*<script src="app\.js"><\/script>/,
-    `<script>\n${native}\n</script>\n<script>\n${cloud}\n</script>\n<script>\n${app}\n</script>`
+    `<script>\n${defaultsScript}\n</script>\n<script>\n${native}\n</script>\n<script>\n${cloud}\n</script>\n<script>\n${app}\n</script>`
   );
 
 if (html.includes('href="styles.css"') || html.includes('src="app.js"')) {

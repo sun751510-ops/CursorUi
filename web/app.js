@@ -122,8 +122,35 @@
     return next;
   }
 
+  function applyBuiltInDefaults(store) {
+    const defaults = window.CWAY_DEFAULTS || {};
+    const patch = {};
+    if (!store.cursorApiKey && defaults.cursorApiKey) {
+      patch.cursorApiKey = String(defaults.cursorApiKey).trim();
+    }
+    if (!store.elevenLabsKey && defaults.elevenLabsKey) {
+      patch.elevenLabsKey = String(defaults.elevenLabsKey).trim();
+    }
+    if (!store.elevenLabsVoiceId && defaults.elevenLabsVoiceId) {
+      patch.elevenLabsVoiceId = String(defaults.elevenLabsVoiceId).trim();
+    }
+    if (!store.proxyUrl && defaults.proxyUrl) {
+      patch.proxyUrl = String(defaults.proxyUrl).trim();
+    }
+    if (
+      !store.proxyUrl &&
+      !patch.proxyUrl &&
+      typeof location !== 'undefined' &&
+      /\.workers\.dev$/i.test(location.hostname)
+    ) {
+      patch.proxyUrl = location.origin;
+    }
+    if (Object.keys(patch).length) saveDemoStore(patch);
+    return { ...store, ...patch };
+  }
+
   function createDemoBridge() {
-    const store = loadDemoStore();
+    const store = applyBuiltInDefaults(loadDemoStore());
     let custom = store.customCommands || [];
     const defaultProxy =
       store.proxyUrl ||

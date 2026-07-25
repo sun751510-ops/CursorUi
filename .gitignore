@@ -6,6 +6,11 @@ release/
 .DS_Store
 .electron-store/
 
+# Local secrets (never commit API keys)
+secrets.local.json
+web/defaults.js
+cloudflare/public/defaults.js
+
 # Native mobile build junk
 android/.gradle/
 android/app/build/
