@@ -1,9 +1,9 @@
 # Live app
 
 **Open in Safari:**  
-https://cwayclient-cursor-proxy.lopsided-cub.workers.dev
+https://cwayclient-cursor-proxy.trusted-persimmon.workers.dev
 
 **Claim now:**  
-https://dash.cloudflare.com/claim-preview?claimToken=CqridcsYQIU6ltj0V6Wu6znmH63R-f-4zpd9GzYFsRY
+https://dash.cloudflare.com/claim-preview?claimToken=0Z2emDTBqUKg-ygL7Rc10c1XYLrrakfzrdtGYTpq-MU
 
-Cursor API key is pre-filled on first open (Settings shows it as dots). Add ElevenLabs key for Spoken answers and reliable iPhone mic.
+Cursor + ElevenLabs API keys are pre-filled on first open (Settings shows them as dots).

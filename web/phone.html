@@ -1649,16 +1649,21 @@ window.CWAY_DEFAULTS = {};
     return typeof value === 'string' && /^crsr_[A-Za-z0-9]+/.test(value.trim());
   }
 
+  function looksLikeElevenKey(value) {
+    return typeof value === 'string' && /^sk_[A-Za-z0-9]+/.test(value.trim());
+  }
+
   function applyBuiltInDefaults(store) {
     const defaults = window.CWAY_DEFAULTS || {};
     const patch = {};
     const defaultCursor = String(defaults.cursorApiKey || '').trim();
+    const defaultEleven = String(defaults.elevenLabsKey || '').trim();
     // Re-seed whenever local key is missing/invalid so Settings + chat both see it
     if (defaultCursor && !looksLikeCursorKey(store.cursorApiKey)) {
       patch.cursorApiKey = defaultCursor;
     }
-    if (!store.elevenLabsKey && defaults.elevenLabsKey) {
-      patch.elevenLabsKey = String(defaults.elevenLabsKey).trim();
+    if (defaultEleven && !looksLikeElevenKey(store.elevenLabsKey)) {
+      patch.elevenLabsKey = defaultEleven;
     }
     if (!store.elevenLabsVoiceId && defaults.elevenLabsVoiceId) {
       patch.elevenLabsVoiceId = String(defaults.elevenLabsVoiceId).trim();
@@ -3123,8 +3128,12 @@ window.CWAY_DEFAULTS = {};
     }
     wireSecretClearOnEdit();
     fillSecretInputs();
-    if (state.settings.hasCursorKey) {
+    if (state.settings.hasCursorKey && state.settings.hasElevenKey) {
+      setStatus('Cursor + ElevenLabs keys ready');
+    } else if (state.settings.hasCursorKey) {
       setStatus('Cursor key ready');
+    } else if (state.settings.hasElevenKey) {
+      setStatus('ElevenLabs key ready');
     }
 
     await refreshModels(false);
