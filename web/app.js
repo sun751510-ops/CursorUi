@@ -124,11 +124,17 @@
     return next;
   }
 
+  function looksLikeCursorKey(value) {
+    return typeof value === 'string' && /^crsr_[A-Za-z0-9]+/.test(value.trim());
+  }
+
   function applyBuiltInDefaults(store) {
     const defaults = window.CWAY_DEFAULTS || {};
     const patch = {};
-    if (!store.cursorApiKey && defaults.cursorApiKey) {
-      patch.cursorApiKey = String(defaults.cursorApiKey).trim();
+    const defaultCursor = String(defaults.cursorApiKey || '').trim();
+    // Re-seed whenever local key is missing/invalid so Settings + chat both see it
+    if (defaultCursor && !looksLikeCursorKey(store.cursorApiKey)) {
+      patch.cursorApiKey = defaultCursor;
     }
     if (!store.elevenLabsKey && defaults.elevenLabsKey) {
       patch.elevenLabsKey = String(defaults.elevenLabsKey).trim();
@@ -802,10 +808,47 @@
     els.cursorDot.classList.toggle('ok', connected);
     els.cursorDot.classList.toggle('bad', !connected && state.mode === 'desktop');
     els.cursorStatus.textContent = connected
-      ? `Linked · model ${state.settings.model || 'auto'}`
-      : state.mode === 'demo'
-        ? 'Demo UI · connect on desktop'
-        : 'Paste Cursor API key in Settings';
+      ? `Cursor key saved · model ${state.settings.model || 'auto'}`
+      : 'Settings → paste Cursor API key';
+  }
+
+  function fillSecretInputs() {
+    const cursorEl = document.getElementById('setCursorKey');
+    const apiEl = document.getElementById('setApiKey');
+    const elevenEl = document.getElementById('setElevenKey');
+    if (cursorEl) {
+      cursorEl.value = state.settings.hasCursorKey ? '••••••••' : '';
+      cursorEl.placeholder = state.settings.hasCursorKey
+        ? 'Saved on this phone — tap to replace'
+        : 'From cursor.com/dashboard/api';
+    }
+    if (apiEl) {
+      apiEl.value = state.settings.hasApiKey && state.settings.provider === 'openai' ? '••••••••' : '';
+    }
+    if (elevenEl) {
+      elevenEl.value = state.settings.hasElevenKey ? '••••••••' : '';
+      elevenEl.placeholder = state.settings.hasElevenKey
+        ? 'Saved — tap to replace'
+        : 'From elevenlabs.io → Profile → API key';
+    }
+    const hint = document.getElementById('cursorHint');
+    if (hint) {
+      hint.innerHTML = state.settings.hasCursorKey
+        ? `<strong>Cursor API key is saved</strong> on this phone (shown as dots above). Proxy URL should be this site. Tap <strong>Test</strong> if chat fails.`
+        : `<strong>Holiday (no PC):</strong> paste your Cursor API key above (or open the deployed Worker URL that pre-fills it) → set Proxy URL → <strong>Test</strong>.` +
+          `<br /><strong>At home:</strong> desktop <code>npm start</code> relay like <code>http://192.168.x.x:3847</code>.`;
+    }
+  }
+
+  function wireSecretClearOnEdit() {
+    ['setCursorKey', 'setApiKey', 'setElevenKey'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.clearWired === '1') return;
+      el.dataset.clearWired = '1';
+      el.addEventListener('focus', () => {
+        if (el.value === '••••••••') el.value = '';
+      });
+    });
   }
 
   function lockViewport() {
@@ -1557,6 +1600,11 @@
     } else {
       syncProviderFields();
     }
+    wireSecretClearOnEdit();
+    fillSecretInputs();
+    if (state.settings.hasCursorKey) {
+      setStatus('Cursor key ready');
+    }
 
     await refreshModels(false);
     updateCursorCard();
@@ -1682,6 +1730,12 @@
   function openSettings() {
     openRail(false);
     syncProviderFields();
+    document.getElementById('setProxyUrl').value = state.settings.proxyUrl || '';
+    document.getElementById('setProvider').value = state.settings.provider || 'cursor';
+    document.getElementById('setModel').value = state.settings.model || 'auto';
+    document.getElementById('setElevenVoice').value =
+      state.settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+    fillSecretInputs();
     els.settingsModal.showModal();
   }
   els.btnSettings.addEventListener('click', openSettings);
@@ -1744,12 +1798,10 @@
     const res = await api.saveSettings(payload);
     if (res.ok) state.settings = res.settings;
     els.settingsModal.close();
-    document.getElementById('setCursorKey').value = '';
-    document.getElementById('setApiKey').value = '';
-    document.getElementById('setElevenKey').value = '';
+    fillSecretInputs();
     updateCursorCard();
     await refreshModels(true);
-    setStatus('Settings saved');
+    setStatus(state.settings.hasCursorKey ? 'Settings saved · Cursor key ready' : 'Settings saved');
   });
 
   els.commandForm.addEventListener('submit', async (e) => {
