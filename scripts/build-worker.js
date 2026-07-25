@@ -195,18 +195,33 @@ async function fastChat(request, env) {
       .map((m) => ({ role: m.role, content: String(m.content).slice(0, 1500) }))
   ];
 
-  try {
-    const result = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-      messages,
-      max_tokens: 220,
-      temperature: 0.6
-    });
-    const text = String(result?.response || result?.result || result?.text || '').trim();
-    if (!text) return json(502, { error: 'Empty AI response' });
-    return json(200, { ok: true, text, provider: 'workers-ai' });
-  } catch (err) {
-    return json(502, { error: err.message || 'Workers AI failed' });
+  const wantStream = payload.stream === true;
+  const opts = { messages, max_tokens: 220, temperature: 0.6 };
+  // -fast runs on speculative-decoding hardware: same weights, much lower latency.
+  const MODELS = ['@cf/meta/llama-3.1-8b-instruct-fast', '@cf/meta/llama-3.1-8b-instruct'];
+
+  let lastErr = null;
+  for (const model of MODELS) {
+    try {
+      if (wantStream) {
+        const stream = await env.AI.run(model, { ...opts, stream: true });
+        return new Response(stream, {
+          headers: {
+            ...CORS,
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-store'
+          }
+        });
+      }
+      const result = await env.AI.run(model, opts);
+      const text = String(result?.response || result?.result || result?.text || '').trim();
+      if (!text) throw new Error('Empty AI response');
+      return json(200, { ok: true, text, provider: 'workers-ai', model });
+    } catch (err) {
+      lastErr = err;
+    }
   }
+  return json(502, { error: (lastErr && lastErr.message) || 'Workers AI failed' });
 }
 
 async function proxyElevenLabsStt(request) {

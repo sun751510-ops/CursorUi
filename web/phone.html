@@ -1713,8 +1713,18 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
 
     let statusListener = null;
 
+    const proxyKindCache = new Map();
+
     async function detectProxyKind(base) {
       if (!base) return 'none';
+      if (proxyKindCache.has(base)) return proxyKindCache.get(base);
+      const kind = await detectProxyKindUncached(base);
+      // Only cache confident answers; 'none' may be a transient network failure.
+      if (kind !== 'none') proxyKindCache.set(base, kind);
+      return kind;
+    }
+
+    async function detectProxyKindUncached(base) {
       // Same Worker that hosts the app
       try {
         if (typeof location !== 'undefined' && base.replace(/\/$/, '') === location.origin) {
@@ -1746,7 +1756,35 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
       return 'cloud';
     }
 
-    async function demoChat({ messages }) {
+    async function readSseStream(res, onToken) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let text = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          const data = line.startsWith('data:') ? line.slice(5).trim() : '';
+          if (!data || data === '[DONE]') continue;
+          try {
+            const delta = String(JSON.parse(data).response || '');
+            if (delta) {
+              text += delta;
+              onToken?.(delta, text);
+            }
+          } catch {
+            /* skip malformed chunk */
+          }
+        }
+      }
+      return text.trim();
+    }
+
+    async function demoChat({ messages, onToken }) {
       const last = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
       const proxy = rawProxyUrl().replace(/\/$/, '');
       const key = rawCursorKey();
@@ -1783,10 +1821,12 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
           }
         }
 
-        // Holiday / no PC: prefer instant Workers AI, fall back to Cursor agents
+        // Holiday / no PC: prefer instant Workers AI (streamed), fall back to Cursor agents
         try {
           statusListener?.('Answering…');
+          const wantStream = typeof onToken === 'function';
           const ctrl = new AbortController();
+          // Abort only while waiting for headers; a healthy stream can run longer.
           const timer = setTimeout(() => ctrl.abort(), 12000);
           const fastRes = await fetch(`${proxy}/chat`, {
             method: 'POST',
@@ -1795,25 +1835,41 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
               messages: messages
                 .filter((m) => m.role === 'user' || m.role === 'assistant')
                 .slice(-8),
-              memory: window.CwayMemory?.text?.() || ''
+              memory: window.CwayMemory?.text?.() || '',
+              stream: wantStream
             }),
             signal: ctrl.signal
           });
           clearTimeout(timer);
-          const fastRaw = await fastRes.text();
-          if (!fastRaw.trimStart().startsWith('<!')) {
-            const fastData = JSON.parse(fastRaw || '{}');
-            if (fastRes.ok && (fastData.text || fastData.ok)) {
+
+          const contentType = fastRes.headers.get('content-type') || '';
+          if (fastRes.ok && contentType.includes('text/event-stream')) {
+            const text = await readSseStream(fastRes, onToken);
+            if (text) {
               return {
                 ok: true,
-                message: {
-                  role: 'assistant',
-                  content: String(fastData.text || fastData.message?.content || '').trim() || 'Done.'
-                },
+                message: { role: 'assistant', content: text },
                 commands: allCommands(),
                 provider: 'workers-ai',
-                model: 'llama-3.1-8b'
+                model: 'llama-3.1-8b-fast'
               };
+            }
+          } else {
+            const fastRaw = await fastRes.text();
+            if (!fastRaw.trimStart().startsWith('<!')) {
+              const fastData = JSON.parse(fastRaw || '{}');
+              if (fastRes.ok && (fastData.text || fastData.ok)) {
+                return {
+                  ok: true,
+                  message: {
+                    role: 'assistant',
+                    content: String(fastData.text || fastData.message?.content || '').trim() || 'Done.'
+                  },
+                  commands: allCommands(),
+                  provider: 'workers-ai',
+                  model: 'llama-3.1-8b'
+                };
+              }
             }
           }
         } catch {
@@ -2609,14 +2665,31 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
 
     const offStatus = api.onStatus?.((s) => setStatus(s));
 
+    // Streaming: swap the typing dots for a live bubble on the first token.
+    let liveDiv = null;
+    const onToken = (_delta, fullText) => {
+      if (!liveDiv) {
+        hideTyping();
+        liveDiv = document.createElement('div');
+        liveDiv.className = 'msg assistant';
+        els.chat.appendChild(liveDiv);
+        setStatus('Answering…');
+      }
+      liveDiv.innerHTML = `<span class="meta">CwayClient</span>${formatMarkdownLite(fullText)}`;
+      els.chat.scrollTop = els.chat.scrollHeight;
+    };
+
     try {
       const history = state.messages
         .filter((m) => m.role === 'user' || m.role === 'assistant')
         .map((m) => ({ role: m.role, content: m.content }));
-      const result = await api.chat({ messages: history });
+      // Electron IPC can't serialize callbacks — stream only in browser mode.
+      const payload = window.cway ? { messages: history } : { messages: history, onToken };
+      const result = await api.chat(payload);
       hideTyping();
 
       if (!result.ok) {
+        liveDiv?.remove();
         const err = { role: 'assistant', content: result.error || 'Request failed.' };
         state.messages.push(err);
         appendMessage(err);
@@ -2636,7 +2709,14 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
           renderCommands(els.cmdFilter.value);
         }
         state.messages.push(result.message);
-        appendMessage(result.message);
+        if (liveDiv) {
+          // Bubble already streamed in — just make sure it holds the final text.
+          liveDiv.innerHTML = `<span class="meta">CwayClient</span>${formatMarkdownLite(result.message.content)}`;
+          els.chat.scrollTop = els.chat.scrollHeight;
+          els.heroStrip.classList.add('collapsed');
+        } else {
+          appendMessage(result.message);
+        }
         await deliverReply(result.message.content);
       }
       await persistHistory();
@@ -2645,6 +2725,7 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
       }
     } catch (err) {
       hideTyping();
+      liveDiv?.remove();
       const msg = { role: 'assistant', content: err.message || String(err) };
       state.messages.push(msg);
       appendMessage(msg);
