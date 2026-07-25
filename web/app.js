@@ -1374,6 +1374,7 @@
       const form = new FormData();
       form.append('file', blob, `cway.${ext}`);
       form.append('model_id', 'scribe_v1');
+      form.append('language_code', 'en');
       const res = await fetch(`${proxy}/stt`, {
         method: 'POST',
         headers: { 'x-elevenlabs-key': key },
@@ -1506,7 +1507,7 @@
       const rec = new SR();
       rec.continuous = !isIOS;
       rec.interimResults = true;
-      rec.lang = navigator.language || 'en-US';
+      rec.lang = 'en-US';
       let finalText = '';
       let hadResult = false;
       let ignoreErrors = false;

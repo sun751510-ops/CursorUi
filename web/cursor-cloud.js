@@ -85,7 +85,7 @@
       'Coordinate capabilities, understand intent, never invent functionality, never fabricate success. ' +
       'Live modules: Conversation and Voice (replies are spoken aloud). Session-only Memory. ' +
       'Calendar, Tasks, Notes, Search, Files, Automation, Device Control, Music, Email, Vision are not connected yet — say so and offer alternatives. ' +
-      'Personality: professional, efficient, friendly, confident. Answer in short spoken-friendly plain sentences. No repo/code edits.';
+      'Personality: professional, efficient, friendly, confident. ALWAYS answer in English unless the user explicitly asks for another language. Answer in short spoken-friendly plain sentences. No repo/code edits.';
 
     const promptText = `${system}\n\nUser said: ${userText}`;
     const modelId = !model || model === 'auto' ? undefined : model;
