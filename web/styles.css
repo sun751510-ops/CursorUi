@@ -898,3 +898,20 @@ label input:focus,
 @media (display-mode: standalone) {
   .install-banner { display: none !important; }
 }
+
+.answer-mode-card {
+  text-align: center;
+}
+.answer-mode-hint {
+  margin: 0 0 14px;
+}
+.answer-mode-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.answer-mode-btn {
+  min-height: 52px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}

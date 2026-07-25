@@ -154,7 +154,7 @@
         </label>
         <label>
           <span>Proxy URL</span>
-          <input name="proxyUrl" id="setProxyUrl" placeholder="https://cwayclient-cursor-proxy.snow-paw.workers.dev" />
+          <input name="proxyUrl" id="setProxyUrl" placeholder="https://cwayclient-cursor-proxy.…workers.dev" />
         </label>
         <p class="hint" id="cursorHint">
           <strong>Holiday (no PC):</strong> deploy <code>cloudflare/worker.js</code> on Cloudflare Workers → paste
@@ -186,19 +186,42 @@
         <input name="workspacePath" id="setWorkspace" placeholder="~/ or project folder" />
       </label>
 
+      <label>
+        <span>ElevenLabs API key (spoken answers)</span>
+        <input name="elevenLabsKey" id="setElevenKey" type="password" placeholder="From elevenlabs.io → Profile → API key" />
+      </label>
+      <label>
+        <span>ElevenLabs voice id</span>
+        <input name="elevenLabsVoiceId" id="setElevenVoice" placeholder="21m00Tcm4TlvDq8ikWAM" />
+      </label>
+      <p class="hint">After you stop the mic, CwayClient asks Typed or Spoken. Spoken uses ElevenLabs through your Worker.</p>
+
       <label class="check">
         <input type="checkbox" id="setConfirmShell" checked />
         <span>Confirm shell commands</span>
       </label>
       <label class="check">
         <input type="checkbox" id="setVoice" checked />
-        <span>Speak replies (TTS)</span>
+        <span>Allow spoken answers</span>
       </label>
 
       <footer>
         <button value="cancel" class="ghost-btn">Cancel</button>
         <button value="default" class="primary-btn" id="saveSettings">Save</button>
       </footer>
+    </form>
+  </dialog>
+
+  <dialog id="answerModeModal" class="modal">
+    <form method="dialog" class="modal-card answer-mode-card" id="answerModeForm">
+      <header>
+        <h3>How should I answer?</h3>
+      </header>
+      <p class="hint answer-mode-hint">I’ll reply right away — pick how you want it.</p>
+      <div class="answer-mode-actions">
+        <button type="submit" value="typed" class="ghost-btn answer-mode-btn" id="answerTyped">Typed</button>
+        <button type="submit" value="spoken" class="primary-btn answer-mode-btn" id="answerSpoken">Spoken</button>
+      </div>
     </form>
   </dialog>
 

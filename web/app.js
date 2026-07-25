@@ -62,9 +62,11 @@
     settingsModal: document.getElementById('settingsModal'),
     commandModal: document.getElementById('commandModal'),
     runModal: document.getElementById('runModal'),
+    answerModeModal: document.getElementById('answerModeModal'),
     settingsForm: document.getElementById('settingsForm'),
     commandForm: document.getElementById('commandForm'),
     runForm: document.getElementById('runForm'),
+    answerModeForm: document.getElementById('answerModeForm'),
     runFields: document.getElementById('runFields'),
     runTitle: document.getElementById('runTitle'),
     runDesc: document.getElementById('runDesc'),
@@ -93,11 +95,16 @@
       voiceEnabled: true,
       hasCursorKey: false,
       hasApiKey: false,
-      workspacePath: ''
+      workspacePath: '',
+      elevenLabsKey: '',
+      elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
+      hasElevenKey: false
     },
     pendingRun: null,
+    pendingAnswerMode: null,
     busy: false,
-    recognition: null
+    recognition: null,
+    ttsAudio: null
   };
 
   function loadDemoStore() {
@@ -133,8 +140,11 @@
       confirmShell: store.confirmShell !== false,
       voiceEnabled: store.voiceEnabled !== false,
       workspacePath: store.workspacePath || '',
+      elevenLabsKey: store.elevenLabsKey || '',
+      elevenLabsVoiceId: store.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
       hasCursorKey: Boolean(store.cursorApiKey),
-      hasApiKey: Boolean(store.apiKey || store.cursorApiKey)
+      hasApiKey: Boolean(store.apiKey || store.cursorApiKey),
+      hasElevenKey: Boolean(store.elevenLabsKey)
     };
     if (defaultProxy && !store.proxyUrl) {
       saveDemoStore({ proxyUrl: defaultProxy });
@@ -299,6 +309,8 @@
           ...settings,
           cursorApiKey: settings.hasCursorKey ? '••••••••' : '',
           apiKey: settings.apiKey ? '••••••••' : '',
+          elevenLabsKey: settings.hasElevenKey ? '••••••••' : '',
+          elevenLabsVoiceId: settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
           proxyUrl: settings.proxyUrl || ''
         },
         history
@@ -325,11 +337,15 @@
         settings = { ...settings, ...partial };
         if (partial.clearCursorKey) settings.cursorApiKey = '';
         if (partial.clearApiKey) settings.apiKey = '';
+        if (partial.clearElevenKey) settings.elevenLabsKey = '';
         const prev = loadDemoStore();
         saveDemoStore({
           provider: settings.provider,
           cursorApiKey: settings.cursorApiKey === '••••••••' ? prev.cursorApiKey : settings.cursorApiKey,
           apiKey: settings.apiKey === '••••••••' ? prev.apiKey : settings.apiKey,
+          elevenLabsKey:
+            settings.elevenLabsKey === '••••••••' ? prev.elevenLabsKey : settings.elevenLabsKey,
+          elevenLabsVoiceId: settings.elevenLabsVoiceId || prev.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM',
           baseUrl: settings.baseUrl,
           model: settings.model,
           proxyUrl: settings.proxyUrl,
@@ -340,6 +356,8 @@
         const saved = loadDemoStore();
         settings.hasCursorKey = Boolean(saved.cursorApiKey);
         settings.hasApiKey = Boolean(saved.apiKey || saved.cursorApiKey);
+        settings.hasElevenKey = Boolean(saved.elevenLabsKey);
+        settings.elevenLabsVoiceId = saved.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
         settings.proxyUrl = saved.proxyUrl || '';
         return {
           ok: true,
@@ -347,6 +365,7 @@
             ...settings,
             cursorApiKey: settings.hasCursorKey ? '••••••••' : '',
             apiKey: saved.apiKey ? '••••••••' : '',
+            elevenLabsKey: settings.hasElevenKey ? '••••••••' : '',
             proxyUrl: settings.proxyUrl
           }
         };
@@ -483,8 +502,61 @@
       .replace(/\n/g, '<br>');
   }
 
-  function speak(text) {
-    if (!state.settings.voiceEnabled || !window.speechSynthesis) return;
+  function rawElevenKey() {
+    try {
+      const store = JSON.parse(localStorage.getItem('cwayclient-demo') || '{}');
+      if (store.elevenLabsKey) return store.elevenLabsKey;
+    } catch {
+      /* ignore */
+    }
+    const fromState = state.settings?.elevenLabsKey;
+    if (fromState && fromState !== '••••••••') return fromState;
+    return '';
+  }
+
+  function proxyBase() {
+    const fromSettings = (state.settings.proxyUrl || '').replace(/\/$/, '');
+    if (fromSettings) return fromSettings;
+    if (typeof location !== 'undefined' && /\.workers\.dev$/i.test(location.hostname)) {
+      return location.origin;
+    }
+    return '';
+  }
+
+  function askAnswerMode() {
+    return new Promise((resolve) => {
+      const modal = els.answerModeModal;
+      if (!modal) {
+        resolve('typed');
+        return;
+      }
+      const onClose = () => {
+        modal.removeEventListener('close', onClose);
+        const val = modal.returnValue === 'spoken' ? 'spoken' : 'typed';
+        resolve(val);
+      };
+      modal.addEventListener('close', onClose);
+      try {
+        modal.returnValue = 'typed';
+        modal.showModal();
+      } catch {
+        resolve('typed');
+      }
+    });
+  }
+
+  async function sendAfterVoice(text) {
+    const content = String(text || '').trim();
+    if (!content || state.busy) return;
+    setStatus('How should I answer?');
+    const mode = await askAnswerMode();
+    state.pendingAnswerMode = mode;
+    setStatus(mode === 'spoken' ? 'Got it — answering out loud…' : 'Got it — typing reply…');
+    await handleSend(content);
+  }
+
+  function speakBrowser(text) {
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text.replace(/[*`#_]/g, ' ').slice(0, 500));
     u.rate = 1.05;
@@ -492,6 +564,86 @@
     u.onend = () => setOrb(state.busy ? 'thinking' : 'idle');
     u.onerror = () => setOrb('idle');
     window.speechSynthesis.speak(u);
+  }
+
+  async function speakElevenLabs(text) {
+    const key = rawElevenKey();
+    const proxy = proxyBase();
+    const voiceId = state.settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+    if (!key) {
+      setStatus('Add ElevenLabs API key in Settings for spoken answers');
+      speakBrowser(text);
+      return;
+    }
+    if (!proxy) {
+      setStatus('Set Proxy URL for ElevenLabs voice');
+      speakBrowser(text);
+      return;
+    }
+    try {
+      setStatus('Speaking…');
+      setOrb('speaking');
+      const res = await fetch(`${proxy}/tts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-elevenlabs-key': key
+        },
+        body: JSON.stringify({
+          text: String(text || '').replace(/[*`#_]/g, ' ').slice(0, 4500),
+          voiceId
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `ElevenLabs ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (state.ttsAudio) {
+        try {
+          state.ttsAudio.pause();
+        } catch {
+          /* ignore */
+        }
+      }
+      const audio = new Audio(url);
+      state.ttsAudio = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        setOrb(state.busy ? 'thinking' : 'idle');
+        setStatus('Standing by');
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        setOrb('idle');
+        setStatus('Voice playback failed');
+      };
+      await audio.play();
+    } catch (err) {
+      setStatus(err.message || 'ElevenLabs failed — using device voice');
+      speakBrowser(text);
+    }
+  }
+
+  async function deliverReply(text) {
+    const mode = state.pendingAnswerMode;
+    state.pendingAnswerMode = null;
+    if (mode === 'spoken') {
+      await speakElevenLabs(text);
+      return;
+    }
+    // typed (or keyboard send) — show text only
+    setOrb('idle');
+  }
+
+  function speak(text) {
+    if (!state.settings.voiceEnabled) return;
+    if (rawElevenKey()) {
+      speakElevenLabs(text);
+      return;
+    }
+    speakBrowser(text);
   }
 
   function renderSuggestions() {
@@ -712,11 +864,12 @@
         }
         state.messages.push(result.message);
         appendMessage(result.message);
-        speak(result.message.content);
-        setOrb(state.settings.voiceEnabled ? 'speaking' : 'idle');
+        await deliverReply(result.message.content);
       }
       await persistHistory();
-      setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+      if (!state.ttsAudio || state.ttsAudio.paused) {
+        setStatus(state.mode === 'demo' ? 'Demo mode · UI preview' : 'Standing by');
+      }
     } catch (err) {
       hideTyping();
       const msg = { role: 'assistant', content: err.message || String(err) };
@@ -976,7 +1129,7 @@
           setListeningUi(false);
           if (state.busy || ignoreErrors || !wasListening) return;
           const text = (finalText || els.prompt.value).trim();
-          if (text && hadResult) handleSend(text);
+          if (text && hadResult) sendAfterVoice(text);
           else idleStatus();
         };
 
@@ -993,7 +1146,7 @@
             }
             setListeningUi(false);
             const text = (finalText || els.prompt.value).trim();
-            if (text && hadResult) handleSend(text);
+            if (text && hadResult) await sendAfterVoice(text);
             else idleStatus();
             setTimeout(() => {
               ignoreErrors = false;
@@ -1085,9 +1238,9 @@
     };
     rec.onend = () => {
       setListeningUi(false);
-      if (state.busy) return;
+      if (state.busy || ignoreErrors) return;
       const text = (finalText || els.prompt.value).trim();
-      if (text && hadResult) handleSend(text);
+      if (text && hadResult) sendAfterVoice(text);
       else idleStatus();
     };
 
@@ -1102,6 +1255,10 @@
         } catch {
           /* ignore */
         }
+        setListeningUi(false);
+        const text = (finalText || els.prompt.value).trim();
+        if (text && hadResult) await sendAfterVoice(text);
+        else idleStatus();
         setTimeout(() => {
           ignoreErrors = false;
         }, 300);
@@ -1231,6 +1388,8 @@
     document.getElementById('setModel').value = state.settings.model || 'auto';
     document.getElementById('setWorkspace').value = state.settings.workspacePath || '';
     document.getElementById('setProxyUrl').value = state.settings.proxyUrl || '';
+    document.getElementById('setElevenVoice').value =
+      state.settings.elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
     document.getElementById('setConfirmShell').checked = state.settings.confirmShell !== false;
     document.getElementById('setVoice').checked = state.settings.voiceEnabled !== false;
     // Phone defaults to Cursor settings visible
@@ -1409,22 +1568,27 @@
     e.preventDefault();
     const cursorApiKey = document.getElementById('setCursorKey').value.trim();
     const apiKey = document.getElementById('setApiKey').value.trim();
+    const elevenLabsKey = document.getElementById('setElevenKey').value.trim();
     const payload = {
       provider: document.getElementById('setProvider').value,
       baseUrl: document.getElementById('setBaseUrl').value.trim() || 'https://api.openai.com/v1',
       model: document.getElementById('setModel').value.trim() || 'auto',
       workspacePath: document.getElementById('setWorkspace').value.trim(),
       proxyUrl: document.getElementById('setProxyUrl').value.trim(),
+      elevenLabsVoiceId:
+        document.getElementById('setElevenVoice').value.trim() || '21m00Tcm4TlvDq8ikWAM',
       confirmShell: document.getElementById('setConfirmShell').checked,
       voiceEnabled: document.getElementById('setVoice').checked
     };
     if (cursorApiKey) payload.cursorApiKey = cursorApiKey;
     if (apiKey) payload.apiKey = apiKey;
+    if (elevenLabsKey) payload.elevenLabsKey = elevenLabsKey;
     const res = await api.saveSettings(payload);
     if (res.ok) state.settings = res.settings;
     els.settingsModal.close();
     document.getElementById('setCursorKey').value = '';
     document.getElementById('setApiKey').value = '';
+    document.getElementById('setElevenKey').value = '';
     updateCursorCard();
     await refreshModels(true);
     setStatus('Settings saved');

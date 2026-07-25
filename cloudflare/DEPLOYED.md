@@ -1,16 +1,18 @@
 # Live app
 
 **Open in Safari:**  
-https://cwayclient-cursor-proxy.snow-paw.workers.dev
+https://cwayclient-cursor-proxy.almond-mountain.workers.dev
 
-**Claim now (or it dies again):**  
-https://dash.cloudflare.com/claim-preview?claimToken=GkiU1lWSnGgFRVHcWQ_hYOEoXVzSi5l2AZvT0QVyjyM
+**Claim now:**  
+https://dash.cloudflare.com/claim-preview?claimToken=wp9Sk-bUraZP7QqgNwRx3nK-yCViBt8S-X6S_-uLMvg
 
 ## Settings
-- AI provider: Cursor  
-- Cursor API key: from https://cursor.com/dashboard/api  
-- Proxy URL: `https://cwayclient-cursor-proxy.snow-paw.workers.dev` (auto if you opened this site)  
-- Tap **Test**, then type a short message (replies can take 30–90s)
+- Cursor API key  
+- Proxy URL = the Worker URL above  
+- **ElevenLabs API key** (for Spoken answers)  
+- ElevenLabs voice id (default Rachel: `21m00Tcm4TlvDq8ikWAM`)
 
-## Mic
-Allow Microphone **and** try voice in Safari (not only Home Screen). Tap mic → speak → tap mic again. If speech is blocked, type — AI still works.
+## Voice flow
+1. Tap mic → speak → tap mic again  
+2. Choose **Typed** or **Spoken**  
+3. Reply starts immediately (Spoken plays ElevenLabs audio when ready)
