@@ -669,7 +669,6 @@
       setSpeechConsent(choice);
       els.speechPermForm.removeEventListener('click', onClick, true);
       if (choice === 'allow') {
-        unlockAudio();
         // Still inside the Allow tap — start before the dialog closes.
         startListening();
       } else {
@@ -686,33 +685,45 @@
     }
   }
 
-  function unlockAudio() {
+  const SILENT_WAV =
+    'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=';
+
+  function stopPlayback() {
     try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (AC) {
-        if (!state.audioCtx) state.audioCtx = new AC();
-        state.audioCtx.resume?.();
-        const buf = state.audioCtx.createBuffer(1, 1, 22050);
-        const src = state.audioCtx.createBufferSource();
-        src.buffer = buf;
-        src.connect(state.audioCtx.destination);
-        src.start(0);
-      }
+      window.speechSynthesis?.cancel();
     } catch {
       /* ignore */
     }
+    if (state.ttsAudio) {
+      try {
+        state.ttsAudio.pause();
+        state.ttsAudio.onended = null;
+        state.ttsAudio.onerror = null;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  // Prime the shared audio element inside a user tap so iOS allows later playback.
+  // NEVER call this right before recording — playback steals the iOS audio session
+  // and the mic records silence.
+  function unlockAudio() {
     try {
       if (!state.ttsAudio) {
-        state.ttsAudio = new Audio(
-          'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA='
-        );
+        state.ttsAudio = new Audio(SILENT_WAV);
+      } else {
+        state.ttsAudio.onended = null;
+        state.ttsAudio.onerror = null;
+        state.ttsAudio.src = SILENT_WAV;
       }
-      const p = state.ttsAudio.play();
+      const el = state.ttsAudio;
+      const p = el.play();
       if (p?.then) {
         p.then(() => {
           try {
-            state.ttsAudio.pause();
-            state.ttsAudio.currentTime = 0;
+            el.pause();
+            el.currentTime = 0;
           } catch {
             /* ignore */
           }
@@ -753,8 +764,6 @@
   async function sendAfterVoice(text) {
     const content = String(text || '').trim();
     if (!content || state.busy) return;
-    // Mic replies always speak — unlock audio inside this tap so iPhone allows playback later
-    unlockAudio();
     state.pendingAnswerMode = 'spoken';
     localStorage.setItem('cway-answer-mode', 'spoken');
     setStatus('Got it — answering out loud…');
@@ -833,7 +842,6 @@
         setStatus('Voice playback failed');
       };
       audio.src = url;
-      await state.audioCtx?.resume?.();
       await audio.play();
       return true;
     } catch (err) {
@@ -1307,8 +1315,13 @@
       mediaStream?.getTracks().forEach((t) => t.stop());
       mediaStream = null;
       recorder = null;
-      if (!blob.size) {
-        setStatus('No audio captured — try again');
+      if (blob.size < 800) {
+        setStatus('No audio captured — tap mic and speak');
+        appendMessage({
+          role: 'system',
+          content:
+            'The recording came back empty. Speak right after tapping the mic, keep it pressed near you, and stop with a second tap. If it keeps happening, close and reopen Safari.'
+        });
         return;
       }
       if (!rawElevenKey()) {
@@ -1546,7 +1559,8 @@
       }
 
       function startFromGesture() {
-        unlockAudio();
+        // Free the iOS audio session so the mic actually captures sound
+        stopPlayback();
         if (useRecorderNow()) startRecordingFromGesture();
         else startWebSpeechFromGesture();
       }
@@ -1556,6 +1570,8 @@
         e.stopPropagation();
         if (state.busy) return;
         if (state.listening) {
+          // Stop tap = the user gesture that later allows spoken playback
+          unlockAudio();
           if (recorder && recorder.state !== 'inactive') stopRecording();
           else stopWebSpeech();
           return;
@@ -1578,10 +1594,14 @@
         e.stopPropagation();
         if (state.busy) return;
         if (state.listening) {
+          unlockAudio();
           stopRecording();
           return;
         }
-        ensureSpeechPermissionThen(startRecordingFromGesture);
+        ensureSpeechPermissionThen(() => {
+          stopPlayback();
+          startRecordingFromGesture();
+        });
       }
       els.micBtn.classList.remove('disabled');
       els.micBtn.title = 'Tap to talk · records audio';

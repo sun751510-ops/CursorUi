@@ -1,9 +1,9 @@
 # Live app
 
 **Open in Safari:**  
-https://cwayclient-cursor-proxy.almond-option.workers.dev
+https://cwayclient-cursor-proxy.dog-baroness.workers.dev
 
 **Claim now:**  
-https://dash.cloudflare.com/claim-preview?claimToken=bUa0NnC_gGL7oFS0uoOBH5hp8oRpsBCZozK6qf3KjP8
+https://dash.cloudflare.com/claim-preview?claimToken=GikJs2FrOYIVQ-CudQnRgRmIu0BgAai6GkFGh6Wryhs
 
-Cursor + ElevenLabs keys pre-filled. Mic replies speak out loud (voice: Sarah, works on free ElevenLabs plan). Chat uses fast Workers AI.
+Cursor + ElevenLabs keys pre-filled. Mic records → transcribes → speaks the reply (Sarah voice, free plan OK). Fast Workers AI chat.
