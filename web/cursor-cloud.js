@@ -1,10 +1,10 @@
 /**
  * Cursor Cloud Agents helper for the phone web app.
  * Talks to api.cursor.com through the Cloudflare Worker proxy.
+ * Prefer streaming run endpoints so replies appear as Cursor generates them.
  */
 (function () {
   function authHeader(apiKey) {
-    // Cloud Agents API accepts Bearer or Basic
     return `Bearer ${String(apiKey || '').trim()}`;
   }
 
@@ -53,6 +53,76 @@
     return data;
   }
 
+  async function cursorStream({ apiKey, proxyUrl, path, onEvent }) {
+    const key = String(apiKey || '').trim();
+    const proxy = String(proxyUrl || '').trim().replace(/\/$/, '');
+    if (!key) throw new Error('Add your Cursor API key in Settings');
+    if (!proxy) throw new Error('Set Proxy URL to your Cloudflare Worker');
+
+    const res = await fetch(proxy, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader(key),
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        'x-cursor-path': path,
+        'x-cursor-method': 'GET'
+      },
+      body: '{}'
+    });
+
+    if (!res.ok || !res.body) {
+      const raw = await res.text().catch(() => '');
+      throw new Error(raw.slice(0, 200) || `Cursor stream failed (${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalText = '';
+    let status = '';
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+      for (const part of parts) {
+        const lines = part.split('\n');
+        let event = 'message';
+        let data = '';
+        for (const line of lines) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        if (!data) continue;
+        let payload = {};
+        try {
+          payload = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        if (event === 'assistant' && payload.text) {
+          finalText += String(payload.text);
+          onEvent?.({ type: 'assistant', text: finalText, delta: String(payload.text) });
+        } else if (event === 'status') {
+          status = payload.status || status;
+          onEvent?.({ type: 'status', status });
+        } else if (event === 'result') {
+          status = payload.status || status;
+          if (payload.text) finalText = String(payload.text);
+          onEvent?.({ type: 'result', text: finalText, status });
+        } else if (event === 'error') {
+          throw new Error(payload.message || payload.code || 'Cursor stream error');
+        } else if (event === 'done') {
+          onEvent?.({ type: 'done', text: finalText });
+        }
+      }
+    }
+    return { text: finalText.trim(), status };
+  }
+
   function sleep(ms) {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -79,18 +149,24 @@
     );
   }
 
-  async function chatOnce({ apiKey, proxyUrl, model, userText, agentId, onStatus }) {
+  function modelSelection(model) {
+    if (!model || model === 'auto' || model === 'instant') return undefined;
+    return { id: String(model) };
+  }
+
+  async function chatOnce({ apiKey, proxyUrl, model, userText, agentId, agentModel, onStatus, onToken }) {
     const system =
       'You are CwayClient, the central AI assistant of a personal operating system, similar to JARVIS. ' +
       'Coordinate capabilities, understand intent, never invent functionality, never fabricate success. ' +
-      'Live modules: Conversation and Voice (replies are spoken aloud). Session-only Memory. ' +
-      'Calendar, Tasks, Notes, Search, Files, Automation, Device Control, Music, Email, Vision are not connected yet — say so and offer alternatives. ' +
+      'Live modules: Conversation, Voice, Memory, Tasks, Notes. ' +
+      'Calendar, Search, Files, Automation, Device Control, Music, Email, Vision are not connected yet — say so and offer alternatives. ' +
       'Personality: professional, efficient, friendly, confident. ALWAYS answer in English unless the user explicitly asks for another language. Answer in short spoken-friendly plain sentences. No repo/code edits.';
 
     const promptText = `${system}\n\nUser said: ${userText}`;
-    const modelId = !model || model === 'auto' ? undefined : model;
+    const selection = modelSelection(model);
 
-    let id = agentId;
+    // Recreate the agent when the user switches models so the new selection sticks.
+    let id = agentId && (!agentModel || !selection || agentModel === selection.id) ? agentId : '';
     let runId;
     onStatus?.('Starting Cursor agent…');
 
@@ -106,7 +182,6 @@
         runId = run.id || run.run?.id;
         id = run.agentId || run.run?.agentId || id;
       } catch (err) {
-        // Stale agent — create a fresh no-repo agent
         if (!/404|not found|expired|inactive|agent/i.test(String(err.message || err))) throw err;
         id = '';
       }
@@ -117,7 +192,7 @@
         name: 'CwayClient Phone',
         prompt: { text: promptText }
       };
-      if (modelId) body.model = { id: modelId };
+      if (selection) body.model = selection;
       const created = await cursorFetch({
         apiKey,
         proxyUrl,
@@ -130,9 +205,34 @@
 
     if (!id || !runId) throw new Error('Cursor did not return an agent/run id — check API key plan access');
 
+    // Prefer the SSE stream so the first tokens appear without waiting for FINISHED.
+    try {
+      onStatus?.('Cursor streaming…');
+      const streamed = await cursorStream({
+        apiKey,
+        proxyUrl,
+        path: `/v1/agents/${id}/runs/${runId}/stream`,
+        onEvent: (ev) => {
+          if (ev.type === 'assistant' && onToken) onToken(ev.delta || '', ev.text || '');
+          if (ev.type === 'status') onStatus?.(`Cursor ${String(ev.status || '').toLowerCase()}…`);
+        }
+      });
+      if (streamed.text) {
+        return {
+          ok: true,
+          text: streamed.text,
+          agentId: id,
+          runId,
+          agentModel: selection?.id || agentModel || ''
+        };
+      }
+    } catch {
+      /* fall through to poll */
+    }
+
     let resultText = '';
-    for (let i = 0; i < 120; i += 1) {
-      await sleep(i < 10 ? 400 : 900);
+    for (let i = 0; i < 100; i += 1) {
+      await sleep(i < 15 ? 250 : 700);
       if (i === 0 || i % 4 === 0) onStatus?.(`Cursor working… (${i + 1})`);
       const run = await cursorFetch({
         apiKey,
@@ -151,18 +251,70 @@
     }
     if (!resultText) throw new Error('Cursor timed out — tap Test, then try a shorter message');
 
-    return { ok: true, text: resultText, agentId: id, runId };
+    return {
+      ok: true,
+      text: resultText,
+      agentId: id,
+      runId,
+      agentModel: selection?.id || agentModel || ''
+    };
+  }
+
+  /** Curated Cloud Agents favorites — merged with live /v1/models. */
+  const CURATED = [
+    { id: 'claude-fable-5-high', displayName: 'Fable 5', description: 'Claude Fable 5 — top Cursor agent model' },
+    {
+      id: 'claude-fable-5-thinking-high',
+      displayName: 'Fable 5 Thinking',
+      description: 'Claude Fable 5 with deep reasoning'
+    },
+    { id: 'grok-4.5', displayName: 'Grok 4.5', description: 'Cursor × SpaceXAI Grok 4.5' },
+    { id: 'grok-4.5-fast', displayName: 'Grok 4.5 Fast', description: 'Faster Grok 4.5 variant' },
+    { id: 'composer-2.5', displayName: 'Composer 2.5', description: 'Cursor Composer' },
+    {
+      id: 'claude-4.6-sonnet-medium-thinking',
+      displayName: 'Claude 4.6 Sonnet',
+      description: 'Claude 4.6 Sonnet (thinking)'
+    }
+  ];
+
+  function mergeModels(live) {
+    const byId = new Map();
+    CURATED.forEach((m) => byId.set(m.id, m));
+    (live || []).forEach((m) => {
+      if (!m?.id) return;
+      const prev = byId.get(m.id);
+      byId.set(m.id, {
+        id: m.id,
+        displayName: m.displayName || prev?.displayName || m.id,
+        description: m.description || prev?.description || ''
+      });
+    });
+    // Prefer curated order first, then remaining live models alphabetically.
+    const curatedIds = new Set(CURATED.map((m) => m.id));
+    const head = CURATED.map((m) => byId.get(m.id)).filter(Boolean);
+    const rest = [...byId.values()]
+      .filter((m) => !curatedIds.has(m.id))
+      .sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+    return [...head, ...rest];
   }
 
   window.CwayCursorCloud = {
+    curatedModels: CURATED,
+
     async listModels({ apiKey, proxyUrl }) {
-      const data = await cursorFetch({ apiKey, proxyUrl, path: '/v1/models', method: 'GET' });
-      const items = data.models || data.items || data || [];
-      return (Array.isArray(items) ? items : []).map((m) => ({
-        id: m.id || m.modelId || m.name,
-        displayName: m.displayName || m.name || m.id,
-        description: m.description || ''
-      }));
+      try {
+        const data = await cursorFetch({ apiKey, proxyUrl, path: '/v1/models', method: 'GET' });
+        const items = data.models || data.items || data || [];
+        const live = (Array.isArray(items) ? items : []).map((m) => ({
+          id: m.id || m.modelId || m.name,
+          displayName: m.displayName || m.name || m.id,
+          description: m.description || ''
+        }));
+        return mergeModels(live);
+      } catch {
+        return mergeModels([]);
+      }
     },
 
     async chat(args) {

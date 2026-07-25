@@ -13,7 +13,12 @@
   ];
 
   const DEMO_MODELS = [
+    { id: 'instant', displayName: 'Instant (Workers AI)' },
     { id: 'auto', displayName: 'auto (Cursor default)' },
+    { id: 'claude-fable-5-high', displayName: 'Fable 5' },
+    { id: 'claude-fable-5-thinking-high', displayName: 'Fable 5 Thinking' },
+    { id: 'grok-4.5', displayName: 'Grok 4.5' },
+    { id: 'grok-4.5-fast', displayName: 'Grok 4.5 Fast' },
     { id: 'composer-2.5', displayName: 'Composer 2.5' },
     { id: 'claude-4.6-sonnet-medium-thinking', displayName: 'Claude 4.6 Sonnet' },
     { id: 'gpt-5.3-codex', displayName: 'GPT-5.3 Codex' },
@@ -93,6 +98,7 @@
       apiKey: '',
       baseUrl: 'https://api.openai.com/v1',
       model: 'auto',
+      aiEngine: 'cursor',
       confirmShell: true,
       voiceEnabled: true,
       hasCursorKey: false,
@@ -180,6 +186,7 @@
       apiKey: store.apiKey || '',
       baseUrl: store.baseUrl || 'https://api.openai.com/v1',
       model: store.model || 'auto',
+      aiEngine: store.aiEngine || (store.cursorApiKey ? 'cursor' : 'instant'),
       proxyUrl: defaultProxy,
       confirmShell: store.confirmShell !== false,
       voiceEnabled: store.voiceEnabled !== false,
@@ -195,6 +202,7 @@
     }
     let history = store.history || [];
     let agentId = store.cursorAgentId || '';
+    let agentModel = store.cursorAgentModel || '';
     const allCommands = () => [...DEMO_BUILTINS, ...custom];
 
     function rawCursorKey() {
@@ -317,12 +325,17 @@
           }
         }
 
-        // Holiday / no PC: prefer instant Workers AI (streamed), fall back to Cursor agents
-        try {
+        // Cloud path: Cursor Cloud Agents (Fable 5 / Grok 4.5 / …) OR Instant Workers AI.
+        // Model "instant" or aiEngine "instant" → Workers AI first.
+        // Otherwise (default when a Cursor key is present) → Cursor Cloud first.
+        const modelId = settings.model || 'auto';
+        const engine = settings.aiEngine || (key ? 'cursor' : 'instant');
+        const preferInstant = modelId === 'instant' || engine === 'instant' || !key;
+
+        async function tryWorkersAi() {
           statusListener?.('Answering…');
           const wantStream = typeof onToken === 'function';
           const ctrl = new AbortController();
-          // Abort only while waiting for headers; a healthy stream can run longer.
           const timer = setTimeout(() => ctrl.abort(), 12000);
           const fastRes = await fetch(`${proxy}/chat`, {
             method: 'POST',
@@ -368,50 +381,94 @@
               }
             }
           }
-        } catch {
-          /* fall through to Cursor */
+          return null;
         }
 
-        if (!key) {
-          return {
-            ok: false,
-            error: 'Fast reply unavailable — add your Cursor API key in Settings as a backup.'
-          };
-        }
-        if (!window.CwayCursorCloud) {
-          return { ok: false, error: 'Cursor cloud helper missing — reload the page.' };
-        }
-        try {
-          statusListener?.('Cursor backup…');
+        async function tryCursorCloud() {
+          if (!key) return null;
+          if (!window.CwayCursorCloud) {
+            return { ok: false, error: 'Cursor cloud helper missing — reload the page.' };
+          }
+          statusListener?.('Cursor Cloud…');
           const result = await window.CwayCursorCloud.chat({
             apiKey: key,
             proxyUrl: proxy,
-            model: settings.model || 'auto',
+            model: modelId === 'instant' ? 'auto' : modelId,
             userText: last,
             agentId,
-            onStatus: (s) => statusListener?.(s)
+            agentModel,
+            onStatus: (s) => statusListener?.(s),
+            onToken: typeof onToken === 'function' ? onToken : undefined
           });
           if (result.agentId) {
             agentId = result.agentId;
-            saveDemoStore({ cursorAgentId: agentId });
+            agentModel = result.agentModel || modelId;
+            saveDemoStore({ cursorAgentId: agentId, cursorAgentModel: agentModel });
           }
           return {
             ok: true,
             message: { role: 'assistant', content: result.text || 'Done.' },
             commands: allCommands(),
             provider: 'cursor-cloud',
-            model: settings.model
+            model: modelId
           };
-        } catch (err) {
-          if (/404|not found|expired|inactive/i.test(String(err.message || err))) {
-            agentId = '';
-            saveDemoStore({ cursorAgentId: '' });
+        }
+
+        if (preferInstant) {
+          try {
+            const fast = await tryWorkersAi();
+            if (fast) return fast;
+          } catch {
+            /* fall through */
+          }
+          try {
+            const cursor = await tryCursorCloud();
+            if (cursor) return cursor;
+          } catch (err) {
+            if (/404|not found|expired|inactive/i.test(String(err.message || err))) {
+              agentId = '';
+              agentModel = '';
+              saveDemoStore({ cursorAgentId: '', cursorAgentModel: '' });
+            }
+            return {
+              ok: false,
+              error:
+                (err.message || String(err)) +
+                ' — Add/check Cursor API key in Settings, or pick Instant (Workers AI).'
+            };
           }
           return {
             ok: false,
-            error: (err.message || String(err)) + ' — Check Proxy URL, then try again.'
+            error: 'Instant AI unavailable — add your Cursor API key in Settings for Cloud Agents.'
           };
         }
+
+        // Cursor Cloud first (Fable 5, Grok 4.5, …), Instant as safety net
+        try {
+          const cursor = await tryCursorCloud();
+          if (cursor?.ok) return cursor;
+          if (cursor && cursor.ok === false) {
+            // helper missing — try instant before bailing
+          }
+        } catch (err) {
+          if (/404|not found|expired|inactive/i.test(String(err.message || err))) {
+            agentId = '';
+            agentModel = '';
+            saveDemoStore({ cursorAgentId: '', cursorAgentModel: '' });
+          }
+          statusListener?.('Cursor failed — trying Instant…');
+        }
+        try {
+          const fast = await tryWorkersAi();
+          if (fast) return fast;
+        } catch {
+          /* ignore */
+        }
+        return {
+          ok: false,
+          error:
+            'Cursor Cloud failed. Tap Test in Settings, confirm your API key, and that Fable 5 / Grok 4.5 are enabled on your plan. Or switch Model → Instant (Workers AI).'
+        };
       }
 
       await sleep(400);
@@ -481,6 +538,7 @@
           elevenLabsVoiceId: settings.elevenLabsVoiceId || prev.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL',
           baseUrl: settings.baseUrl,
           model: settings.model,
+          aiEngine: settings.aiEngine || prev.aiEngine || 'cursor',
           proxyUrl: settings.proxyUrl,
           confirmShell: settings.confirmShell,
           voiceEnabled: settings.voiceEnabled,
@@ -491,6 +549,7 @@
         settings.hasApiKey = Boolean(saved.apiKey || saved.cursorApiKey);
         settings.hasElevenKey = Boolean(saved.elevenLabsKey);
         settings.elevenLabsVoiceId = saved.elevenLabsVoiceId || 'EXAVITQu4vr4xnSDxMaL';
+        settings.aiEngine = saved.aiEngine || settings.aiEngine || 'cursor';
         settings.proxyUrl = saved.proxyUrl || '';
         return {
           ok: true,
@@ -971,11 +1030,17 @@
   function renderModels(models) {
     state.models = models || [];
     const current = state.settings.model || 'auto';
-    const opts = [{ id: 'auto', displayName: 'auto (Cursor default)' }, ...state.models.filter((m) => m.id !== 'auto')];
+    const curated = window.CwayCursorCloud?.curatedModels || [];
+    const opts = [
+      { id: 'instant', displayName: 'Instant (Workers AI)' },
+      { id: 'auto', displayName: 'auto (Cursor default)' },
+      ...curated,
+      ...state.models.filter((m) => m.id !== 'auto' && m.id !== 'instant')
+    ];
     const seen = new Set();
     els.modelSelect.innerHTML = '';
     opts.forEach((m) => {
-      if (seen.has(m.id)) return;
+      if (!m?.id || seen.has(m.id)) return;
       seen.add(m.id);
       const o = document.createElement('option');
       o.value = m.id;
@@ -1373,7 +1438,7 @@
           : 'm4a';
       const form = new FormData();
       form.append('file', blob, `cway.${ext}`);
-      form.append('model_id', 'scribe_v1');
+      form.append('model_id', 'scribe_v2');
       form.append('language_code', 'en');
       const res = await fetch(`${proxy}/stt`, {
         method: 'POST',
@@ -1385,12 +1450,209 @@
       return String(data.text || '').trim();
     }
 
-    // Shared MediaRecorder engine (reliable on iPhone once Microphone is allowed)
+    // Shared MediaRecorder + realtime STT engine
     let mediaStream = null;
     let recorder = null;
     let chunks = [];
     let mime = '';
     let forceRecorder = false;
+    let realtime = null; // { ws, ctx, processor, source, committed, partial, closing }
+
+    function floatTo16BitPCM(float32) {
+      const out = new Int16Array(float32.length);
+      for (let i = 0; i < float32.length; i += 1) {
+        const s = Math.max(-1, Math.min(1, float32[i]));
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return out;
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      return btoa(binary);
+    }
+
+    async function mintRealtimeToken() {
+      const key = rawElevenKey();
+      const proxy = proxyBase();
+      if (!key || !proxy) return null;
+      const res = await fetch(`${proxy}/stt-token`, {
+        method: 'POST',
+        headers: { 'x-elevenlabs-key': key, Accept: 'application/json' }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.detail?.message || `STT token ${res.status}`);
+      return data.token || data.single_use_token || null;
+    }
+
+    function teardownRealtime(keepUi = false) {
+      try {
+        realtime?.ws?.close();
+      } catch {
+        /* ignore */
+      }
+      try {
+        realtime?.processor?.disconnect();
+        realtime?.source?.disconnect();
+        realtime?.ctx?.close?.();
+      } catch {
+        /* ignore */
+      }
+      mediaStream?.getTracks().forEach((t) => t.stop());
+      mediaStream = null;
+      realtime = null;
+      if (!keepUi) setListeningUi(false);
+    }
+
+    async function finishRealtime() {
+      const session = realtime;
+      if (!session) {
+        setListeningUi(false);
+        return;
+      }
+      session.closing = true;
+      setListeningUi(false);
+      setStatus('Finalising transcript…');
+      setOrb('thinking');
+      try {
+        if (session.ws?.readyState === WebSocket.OPEN) {
+          session.ws.send(JSON.stringify({ message_type: 'commit' }));
+        }
+      } catch {
+        /* ignore */
+      }
+      // Wait briefly for the committed transcript after commit.
+      const deadline = Date.now() + 1800;
+      while (Date.now() < deadline && !session.committed) {
+        await sleep(80);
+      }
+      const text = String(session.committed || session.partial || els.prompt.value || '').trim();
+      teardownRealtime(true);
+      if (text) {
+        els.prompt.value = text;
+        autoGrow();
+        await sendAfterVoice(text);
+      } else {
+        setStatus('Heard nothing — try again');
+        idleStatus();
+      }
+    }
+
+    async function startRealtimeFromStream(stream) {
+      const token = await mintRealtimeToken();
+      if (!token) throw new Error('No realtime STT token');
+
+      const wsUrl =
+        'wss://api.elevenlabs.io/v1/speech-to-text/realtime' +
+        '?model_id=scribe_v2_realtime' +
+        '&token=' +
+        encodeURIComponent(token) +
+        '&language_code=en' +
+        '&commit_strategy=manual';
+
+      const ws = new WebSocket(wsUrl);
+      const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      if (ctx.state === 'suspended') await ctx.resume();
+      const source = ctx.createMediaStreamSource(stream);
+      const processor = ctx.createScriptProcessor(4096, 1, 1);
+      const session = {
+        ws,
+        ctx,
+        processor,
+        source,
+        committed: '',
+        partial: '',
+        closing: false,
+        ready: false
+      };
+      realtime = session;
+
+      ws.onopen = () => {
+        session.ready = true;
+        setStatus('Listening live… tap mic to send');
+      };
+      ws.onmessage = (ev) => {
+        let msg = {};
+        try {
+          msg = JSON.parse(ev.data);
+        } catch {
+          return;
+        }
+        const type = msg.message_type || msg.type || '';
+        const text = String(msg.text || msg.transcript || '').trim();
+        if (!text) return;
+        if (/partial/i.test(type)) {
+          session.partial = text;
+          els.prompt.value = `${session.committed}${session.committed ? ' ' : ''}${text}`.trim();
+          autoGrow();
+        } else if (/committed/i.test(type)) {
+          session.committed = `${session.committed}${session.committed ? ' ' : ''}${text}`.trim();
+          session.partial = '';
+          els.prompt.value = session.committed;
+          autoGrow();
+        }
+      };
+      ws.onerror = () => {
+        if (!session.closing) {
+          // Fall back to batch MediaRecorder on the same stream
+          teardownRealtime(true);
+          startBatchRecorder(stream);
+        }
+      };
+      ws.onclose = () => {
+        if (!session.closing && realtime === session) {
+          teardownRealtime(true);
+          startBatchRecorder(stream);
+        }
+      };
+
+      processor.onaudioprocess = (e) => {
+        if (!session.ready || session.ws.readyState !== WebSocket.OPEN) return;
+        const input = e.inputBuffer.getChannelData(0);
+        const pcm = floatTo16BitPCM(input);
+        const b64 = bytesToBase64(new Uint8Array(pcm.buffer));
+        try {
+          session.ws.send(
+            JSON.stringify({
+              message_type: 'input_audio_chunk',
+              audio_base_64: b64,
+              commit: false,
+              sample_rate: 16000
+            })
+          );
+        } catch {
+          /* ignore */
+        }
+      };
+      source.connect(processor);
+      processor.connect(ctx.destination);
+    }
+
+    function startBatchRecorder(stream) {
+      mediaStream = stream;
+      chunks = [];
+      mime = pickMime();
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      mime = recorder.mimeType || mime || 'audio/mp4';
+      recorder.ondataavailable = (ev) => {
+        if (ev.data?.size) chunks.push(ev.data);
+      };
+      recorder.onerror = () => {
+        setListeningUi(false);
+        setStatus('Mic error — type instead');
+      };
+      recorder.onstop = () => {
+        setListeningUi(false);
+        finishRecording();
+      };
+      setListeningUi(true);
+      setStatus('Listening… speak, then tap mic again');
+      recorder.start(250);
+    }
 
     async function finishRecording() {
       const blob = new Blob(chunks, { type: mime || 'audio/mp4' });
@@ -1443,6 +1705,10 @@
     }
 
     function stopRecording() {
+      if (realtime) {
+        finishRealtime();
+        return;
+      }
       if (!recorder) {
         setListeningUi(false);
         return;
@@ -1462,29 +1728,27 @@
       }
       // Must invoke getUserMedia in this turn (iOS user-gesture).
       const gum = navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true }
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1
+        }
       });
       setListeningUi(true);
-      setStatus('Listening… speak, then tap mic again');
+      setStatus('Connecting live mic…');
       gum
-        .then((stream) => {
+        .then(async (stream) => {
           mediaStream = stream;
-          chunks = [];
-          mime = pickMime();
-          recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-          mime = recorder.mimeType || mime || 'audio/mp4';
-          recorder.ondataavailable = (ev) => {
-            if (ev.data?.size) chunks.push(ev.data);
-          };
-          recorder.onerror = () => {
-            setListeningUi(false);
-            setStatus('Mic error — type instead');
-          };
-          recorder.onstop = () => {
-            setListeningUi(false);
-            finishRecording();
-          };
-          recorder.start(250);
+          // Prefer realtime Scribe (~150ms partials). Fall back to batch MediaRecorder.
+          if (rawElevenKey() && proxyBase()) {
+            try {
+              await startRealtimeFromStream(stream);
+              return;
+            } catch {
+              /* batch fallback */
+            }
+          }
+          startBatchRecorder(stream);
         })
         .catch(() => {
           setListeningUi(false);
@@ -1981,11 +2245,12 @@
 
   els.modelSelect.addEventListener('change', async () => {
     const model = els.modelSelect.value;
-    const res = await api.saveSettings({ model });
+    const aiEngine = model === 'instant' ? 'instant' : 'cursor';
+    const res = await api.saveSettings({ model, aiEngine });
     if (res.ok) state.settings = res.settings;
     document.getElementById('setModel').value = model;
     updateCursorCard();
-    setStatus(`Model → ${model}`);
+    setStatus(model === 'instant' ? 'Model → Instant (Workers AI)' : `Cursor model → ${model}`);
   });
 
   els.btnRefreshModels.addEventListener('click', async () => {
@@ -2013,10 +2278,12 @@
     const cursorApiKey = document.getElementById('setCursorKey').value.trim();
     const apiKey = document.getElementById('setApiKey').value.trim();
     const elevenLabsKey = document.getElementById('setElevenKey').value.trim();
+    const model = document.getElementById('setModel').value.trim() || 'auto';
     const payload = {
       provider: document.getElementById('setProvider').value,
       baseUrl: document.getElementById('setBaseUrl').value.trim() || 'https://api.openai.com/v1',
-      model: document.getElementById('setModel').value.trim() || 'auto',
+      model,
+      aiEngine: model === 'instant' ? 'instant' : 'cursor',
       workspacePath: document.getElementById('setWorkspace').value.trim(),
       proxyUrl: document.getElementById('setProxyUrl').value.trim(),
       elevenLabsVoiceId:

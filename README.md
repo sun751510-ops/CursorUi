@@ -12,16 +12,18 @@ Safari can’t call Cursor’s API directly (CORS). A free **Cloudflare Worker**
 https://cwayclient-cursor-proxy.half-periwinkle.workers.dev  
 
 If you see “Just a moment…”, wait a second — then CwayClient appears.  
-Share → **Add to Home Screen**. Proxy URL + Cursor + ElevenLabs keys are auto-filled. Mic replies speak out loud; answers use fast Workers AI.
+Share → **Add to Home Screen**. Proxy URL + Cursor + ElevenLabs keys are auto-filled. Mic replies speak out loud.
 
 **Claim into your Cloudflare account now** (preview dies if you don’t — this is why the last link broke):  
 https://dash.cloudflare.com/claim-preview?claimToken=HKquRVE8tV_hyy2-wgNrrbahiEK84At488-lAFG0cbM  
 
-Mic: tap → **Allow** → speak → tap again → **Typed** or **Spoken**. If Safari blocks on-device speech, the mic records + transcribes via ElevenLabs.
+**Cursor models (Fable 5 / Grok 4.5):** Settings → paste a `crsr_` key from [cursor.com/dashboard/api](https://cursor.com/dashboard/api) → **Test** → pick the model in the rail. Full steps: [`docs/CURSOR_SETUP.md`](docs/CURSOR_SETUP.md).
+
+Mic: tap → **Allow** → speak (live transcript) → tap again → **Typed** or **Spoken**. Realtime Scribe (`scribe_v2_realtime`) when ElevenLabs is set; batch `scribe_v2` as fallback.
 
 > Don’t open the GitHub/jsDelivr `.html` link — Safari shows the code (`text/plain`).
 
-Flow: **iPhone mic → speech-to-text → Cloudflare Worker → Cursor Cloud Agents → reply**
+Flow: **iPhone mic → realtime STT → Cloudflare Worker → Cursor Cloud Agents (or Instant Workers AI) → streamed reply**
 
 To redeploy later:
 ```bash

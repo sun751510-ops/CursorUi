@@ -74,7 +74,9 @@ async function proxyCursor(request, url) {
   }
 
   const method = (request.headers.get('x-cursor-method') || 'GET').toUpperCase();
-  const incoming = await request.text();
+  const wantStream = /text\\/event-stream/i.test(request.headers.get('Accept') || '') ||
+    String(apiPath).endsWith('/stream');
+  const incoming = method === 'GET' || method === 'HEAD' ? '' : await request.text();
   const target = 'https://api.cursor.com' + apiPath;
 
   try {
@@ -83,10 +85,49 @@ async function proxyCursor(request, url) {
       headers: {
         Authorization: auth,
         'Content-Type': 'application/json',
-        Accept: 'application/json'
+        Accept: wantStream ? 'text/event-stream' : 'application/json'
       },
       body: method === 'GET' || method === 'HEAD' ? undefined : incoming || undefined
     });
+
+    const upstreamType = upstream.headers.get('content-type') || '';
+    if (wantStream || upstreamType.includes('text/event-stream')) {
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+          ...CORS,
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-store'
+        }
+      });
+    }
+
+    const text = await upstream.text();
+    return new Response(text, {
+      status: upstream.status,
+      headers: {
+        ...CORS,
+        'Content-Type': upstreamType || 'application/json'
+      }
+    });
+  } catch (err) {
+    return json(502, { error: err.message || 'Proxy failed' });
+  }
+}
+
+async function proxyElevenLabsSttToken(request) {
+  const key = elevenKey(request);
+  if (!key) {
+    return json(401, { error: 'Missing ElevenLabs API key (x-elevenlabs-key)' });
+  }
+  try {
+    const upstream = await fetch(
+      'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe',
+      {
+        method: 'POST',
+        headers: { 'xi-api-key': key, Accept: 'application/json' }
+      }
+    );
     const text = await upstream.text();
     return new Response(text, {
       status: upstream.status,
@@ -96,7 +137,7 @@ async function proxyCursor(request, url) {
       }
     });
   } catch (err) {
-    return json(502, { error: err.message || 'Proxy failed' });
+    return json(502, { error: err.message || 'Failed to mint realtime STT token' });
   }
 }
 
@@ -243,8 +284,9 @@ async function proxyElevenLabsStt(request) {
 
   const upstreamForm = new FormData();
   upstreamForm.append('file', file, file.name || 'cway-audio.m4a');
-  upstreamForm.append('model_id', String(form.get('model_id') || 'scribe_v1'));
-  const language = form.get('language_code');
+  // Prefer scribe_v2 (faster/more accurate); callers may still send scribe_v1.
+  upstreamForm.append('model_id', String(form.get('model_id') || 'scribe_v2'));
+  const language = form.get('language_code') || 'en';
   if (language) upstreamForm.append('language_code', String(language));
 
   try {
@@ -283,7 +325,7 @@ export default {
         service: 'cwayclient-cf-proxy',
         app: '/',
         ai: Boolean(env && env.AI),
-        routes: ['/', '/health', '/chat', '/tts', '/stt', 'cursor proxy via x-cursor-path']
+        routes: ['/', '/health', '/chat', '/tts', '/stt', '/stt-token', 'cursor proxy via x-cursor-path']
       });
     }
 
@@ -297,6 +339,10 @@ export default {
 
     if (request.method === 'POST' && pathName === '/stt') {
       return proxyElevenLabsStt(request);
+    }
+
+    if (request.method === 'POST' && pathName === '/stt-token') {
+      return proxyElevenLabsSttToken(request);
     }
 
     if (wantsProxy) {

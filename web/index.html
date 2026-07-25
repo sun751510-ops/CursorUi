@@ -359,8 +359,16 @@
 
       <label>
         <span>Model id</span>
-        <input name="model" id="setModel" placeholder="auto" />
+        <input name="model" id="setModel" placeholder="claude-fable-5-high · grok-4.5 · instant" />
       </label>
+      <p class="hint">
+        <strong>Cursor Cloud:</strong> paste a key from
+        <a href="https://cursor.com/dashboard/api" target="_blank" rel="noopener">cursor.com/dashboard/api</a>
+        (starts with <code>crsr_</code>), keep Proxy URL = this Worker, then tap <strong>Test</strong>.
+        Pick <strong>Fable 5</strong> or <strong>Grok 4.5</strong> in the rail model menu for Cursor Cloud Agents.
+        Use <code>instant</code> for the ultra-fast Workers AI path.
+        Fable 5 may need enabling in the Cursor dashboard first.
+      </p>
 
       <label>
         <span>Workspace path (optional)</span>
