@@ -1,0 +1,8 @@
+{
+  "name": "cwayclient-cursor-proxy",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-24",
+  "ai": {
+    "binding": "AI"
+  }
+}

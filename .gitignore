@@ -1,0 +1,25 @@
+node_modules/
+dist/
+out/
+release/
+*.log
+.DS_Store
+.electron-store/
+
+# Local secrets (never commit API keys)
+secrets.local.json
+web/defaults.js
+cloudflare/public/defaults.js
+
+# Native mobile build junk
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+*.iml
+.idea/
+.wrangler/
