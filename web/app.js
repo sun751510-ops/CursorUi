@@ -143,7 +143,8 @@
     const patch = {};
     const defaultCursor = String(defaults.cursorApiKey || '').trim();
     const defaultEleven = String(defaults.elevenLabsKey || '').trim();
-    // Re-seed whenever local key is missing/invalid so Settings + chat both see it
+    // Always re-seed from the deploy defaults when local keys are missing/invalid.
+    // (Your Cursor + ElevenLabs keys are baked into the Worker HTML at build time.)
     if (defaultCursor && !looksLikeCursorKey(store.cursorApiKey)) {
       patch.cursorApiKey = defaultCursor;
     }
@@ -157,8 +158,14 @@
     if (store.elevenLabsVoiceId === '21m00Tcm4TlvDq8ikWAM') {
       patch.elevenLabsVoiceId = 'EXAVITQu4vr4xnSDxMaL';
     }
-    if (!store.proxyUrl && defaults.proxyUrl) {
-      patch.proxyUrl = String(defaults.proxyUrl).trim();
+    if (defaults.proxyUrl) {
+      const builtInProxy = String(defaults.proxyUrl).trim().replace(/\/$/, '');
+      if (!store.proxyUrl || store.proxyUrl.replace(/\/$/, '') !== builtInProxy) {
+        // Keep Proxy URL pointed at the current Worker (old temporary URLs die).
+        if (!store.proxyUrl || /\.workers\.dev$/i.test(store.proxyUrl)) {
+          patch.proxyUrl = builtInProxy;
+        }
+      }
     }
     if (
       !store.proxyUrl &&
@@ -167,6 +174,13 @@
       /\.workers\.dev$/i.test(location.hostname)
     ) {
       patch.proxyUrl = location.origin;
+    }
+    // Prefer Cursor Cloud + Grok/Fable when the deploy ships those defaults
+    if (defaults.model && (!store.model || store.model === 'auto' || store.model === 'instant')) {
+      patch.model = String(defaults.model).trim();
+    }
+    if (defaults.aiEngine && !store.aiEngine) {
+      patch.aiEngine = String(defaults.aiEngine).trim();
     }
     if (Object.keys(patch).length) saveDemoStore(patch);
     return { ...store, ...patch };

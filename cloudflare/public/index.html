@@ -1199,7 +1199,7 @@ input, textarea, select { font-family: inherit; }
   </dialog>
 
   <script>
-window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c155c4a487c2efc4fa76fb24fd0ae89","elevenLabsKey":"sk_3ed771976cc8e4cea4c538d82beb6e1f5c7b76cdbc50b680"};
+window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c155c4a487c2efc4fa76fb24fd0ae89","elevenLabsKey":"sk_3ed771976cc8e4cea4c538d82beb6e1f5c7b76cdbc50b680","proxyUrl":"https://cwayclient-cursor-proxy.half-periwinkle.workers.dev","model":"grok-4.5","aiEngine":"cursor"};
 </script>
 <script>
 /**
@@ -1807,7 +1807,8 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
     const patch = {};
     const defaultCursor = String(defaults.cursorApiKey || '').trim();
     const defaultEleven = String(defaults.elevenLabsKey || '').trim();
-    // Re-seed whenever local key is missing/invalid so Settings + chat both see it
+    // Always re-seed from the deploy defaults when local keys are missing/invalid.
+    // (Your Cursor + ElevenLabs keys are baked into the Worker HTML at build time.)
     if (defaultCursor && !looksLikeCursorKey(store.cursorApiKey)) {
       patch.cursorApiKey = defaultCursor;
     }
@@ -1821,8 +1822,14 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
     if (store.elevenLabsVoiceId === '21m00Tcm4TlvDq8ikWAM') {
       patch.elevenLabsVoiceId = 'EXAVITQu4vr4xnSDxMaL';
     }
-    if (!store.proxyUrl && defaults.proxyUrl) {
-      patch.proxyUrl = String(defaults.proxyUrl).trim();
+    if (defaults.proxyUrl) {
+      const builtInProxy = String(defaults.proxyUrl).trim().replace(/\/$/, '');
+      if (!store.proxyUrl || store.proxyUrl.replace(/\/$/, '') !== builtInProxy) {
+        // Keep Proxy URL pointed at the current Worker (old temporary URLs die).
+        if (!store.proxyUrl || /\.workers\.dev$/i.test(store.proxyUrl)) {
+          patch.proxyUrl = builtInProxy;
+        }
+      }
     }
     if (
       !store.proxyUrl &&
@@ -1831,6 +1838,13 @@ window.CWAY_DEFAULTS = {"cursorApiKey":"crsr_6db254fb0dac95ee97860f7fac38f1629c1
       /\.workers\.dev$/i.test(location.hostname)
     ) {
       patch.proxyUrl = location.origin;
+    }
+    // Prefer Cursor Cloud + Grok/Fable when the deploy ships those defaults
+    if (defaults.model && (!store.model || store.model === 'auto' || store.model === 'instant')) {
+      patch.model = String(defaults.model).trim();
+    }
+    if (defaults.aiEngine && !store.aiEngine) {
+      patch.aiEngine = String(defaults.aiEngine).trim();
     }
     if (Object.keys(patch).length) saveDemoStore(patch);
     return { ...store, ...patch };
