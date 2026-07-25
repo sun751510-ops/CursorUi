@@ -153,16 +153,29 @@
       return s.proxyUrl || settings.proxyUrl || '';
     }
 
+    let statusListener = null;
+
     async function detectProxyKind(base) {
       if (!base) return 'none';
+      // Same Worker that hosts the app
+      try {
+        if (typeof location !== 'undefined' && base.replace(/\/$/, '') === location.origin) {
+          return 'cloud';
+        }
+      } catch {
+        /* ignore */
+      }
       try {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 2500);
-        const res = await fetch(`${base}/health`, { signal: ctrl.signal }).catch(() =>
-          fetch(base, { signal: ctrl.signal })
-        );
+        const res = await fetch(`${base}/health`, { signal: ctrl.signal });
         clearTimeout(timer);
-        const data = await res.json().catch(() => ({}));
+        const raw = await res.text();
+        if (raw.trimStart().startsWith('<!')) {
+          if (/workers\.dev|cloudflare/i.test(base)) return 'cloud';
+          return 'none';
+        }
+        const data = JSON.parse(raw);
         if (data.service === 'cwayclient-relay') return 'relay';
         if (data.service === 'cwayclient-cf-proxy') return 'cloud';
       } catch {
@@ -223,12 +236,14 @@
           return { ok: false, error: 'Cursor cloud helper missing — reload the page.' };
         }
         try {
+          statusListener?.('Talking to Cursor… (can take up to a minute)');
           const result = await window.CwayCursorCloud.chat({
             apiKey: key,
             proxyUrl: proxy,
             model: settings.model || 'auto',
             userText: last,
-            agentId
+            agentId,
+            onStatus: (s) => statusListener?.(s)
           });
           if (result.agentId) {
             agentId = result.agentId;
@@ -242,11 +257,16 @@
             model: settings.model
           };
         } catch (err) {
+          // Drop bad cached agent id so the next send creates a fresh one
+          if (/404|not found|expired|inactive/i.test(String(err.message || err))) {
+            agentId = '';
+            saveDemoStore({ cursorAgentId: '' });
+          }
           return {
             ok: false,
             error:
               (err.message || String(err)) +
-              ' — Check Proxy URL (Cloudflare Worker) and Cursor API key.'
+              ' — Open Settings → check Cursor API key + Proxy URL, tap Test. Replies can take ~30–90s.'
           };
         }
       }
@@ -402,23 +422,30 @@
           return { ok: false, error: 'Reload the page — cloud helper missing', models: DEMO_MODELS };
         }
         try {
-          const health = await fetch(`${proxy}/health`).then((r) => r.json()).catch(() => ({}));
-          const models = await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl: proxy });
+          const tested = window.CwayCursorCloud.test
+            ? await window.CwayCursorCloud.test({ apiKey: key, proxyUrl: proxy })
+            : { models: await window.CwayCursorCloud.listModels({ apiKey: key, proxyUrl: proxy }) };
+          const models = tested.models || [];
           return {
             ok: true,
-            message: `Cloudflare proxy OK · ${models.length} models · ${health.service || 'cursor'}`,
+            message: `Cursor OK via Worker · ${models.length} models — type a message (Cloud Agents can take ~30–90s)`,
             models: models.length ? models : DEMO_MODELS
           };
         } catch (err) {
           return {
             ok: false,
-            error: `${err.message || err} — deploy cloudflare/worker.js and check the URL + API key`,
+            error: `${err.message || err} — check Cursor API key + Proxy URL (claim Worker if link died)`,
             models: DEMO_MODELS
           };
         }
       },
       chat: demoChat,
-      onStatus: () => () => {}
+      onStatus: (cb) => {
+        statusListener = typeof cb === 'function' ? cb : null;
+        return () => {
+          statusListener = null;
+        };
+      }
     };
   }
 
@@ -863,23 +890,38 @@
       return (data.text || '').trim();
     }
 
-    // iPhone / Safari: prefer on-device Web Speech (no OpenAI Whisper key)
+    // iPhone / Safari: on-device Web Speech (mic permission alone is not enough)
     const SRPhone = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
     if (isIOS || SRPhone) {
       if (SRPhone) {
         const rec = new SRPhone();
-        rec.continuous = false;
+        rec.continuous = true;
         rec.interimResults = true;
         rec.lang = navigator.language || 'en-US';
         let finalText = '';
         let hadResult = false;
         let ignoreErrors = false;
+        let micPrimed = false;
+
+        async function primeMic() {
+          if (micPrimed || !navigator.mediaDevices?.getUserMedia) return true;
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach((t) => t.stop());
+            micPrimed = true;
+            return true;
+          } catch {
+            return false;
+          }
+        }
 
         rec.onstart = () => {
           finalText = '';
           hadResult = false;
           setListeningUi(true);
-          setStatus('Listening… tap again when done');
+          setStatus('Listening… speak, then tap mic again');
         };
         rec.onresult = (e) => {
           let interim = '';
@@ -888,32 +930,51 @@
             if (e.results[i].isFinal) {
               finalText += `${t} `;
               hadResult = true;
-            } else interim += t;
+            } else {
+              interim += t;
+              hadResult = true;
+            }
           }
           els.prompt.value = (finalText || interim).trim();
           autoGrow();
         };
         rec.onerror = (e) => {
           const code = e?.error || '';
-          if (code === 'aborted' || code === 'no-speech' || ignoreErrors) {
+          if (code === 'aborted' || ignoreErrors) {
             setListeningUi(false);
-            if (!hadResult) idleStatus();
+            return;
+          }
+          if (code === 'no-speech') {
+            setListeningUi(false);
+            setStatus('No speech heard — tap mic and try again');
             return;
           }
           setListeningUi(false);
-          // Fall through tip — still can type; Cursor replies need Cursor key + proxy
-          setStatus('Speech unavailable — type your message');
-          if (code === 'not-allowed' || code === 'service-not-allowed') {
-            appendMessage({
-              role: 'system',
-              content:
-                'Allow **Microphone** for Safari/CwayClient in iOS Settings. Voice uses on-device speech (no OpenAI key). Replies use your **Cursor** key + proxy.'
-            });
-          }
+          setStatus('Speech blocked — type instead');
+          appendMessage({
+            role: 'system',
+            content:
+              (code === 'not-allowed' || code === 'service-not-allowed'
+                ? 'iPhone blocked speech recognition. '
+                : `Speech error (${code}). `) +
+              (isStandalone
+                ? 'Open this site in **Safari** (not only the Home Screen icon), allow Microphone + Speech Recognition, then try the mic again. Or just **type** — AI still works.'
+                : 'In iOS Settings → Safari → allow Microphone. Also Settings → CwayClient / Safari → Speech Recognition if shown. Or **type** your message.')
+          });
         };
         rec.onend = () => {
+          if (state.listening && !ignoreErrors) {
+            // iOS often ends recognition early — restart while mic is still hot
+            try {
+              rec.start();
+              return;
+            } catch {
+              /* fall through */
+            }
+          }
+          const wasListening = state.listening;
           setListeningUi(false);
-          if (state.busy) return;
+          if (state.busy || ignoreErrors || !wasListening) return;
           const text = (finalText || els.prompt.value).trim();
           if (text && hadResult) handleSend(text);
           else idleStatus();
@@ -930,12 +991,27 @@
             } catch {
               /* ignore */
             }
+            setListeningUi(false);
+            const text = (finalText || els.prompt.value).trim();
+            if (text && hadResult) handleSend(text);
+            else idleStatus();
             setTimeout(() => {
               ignoreErrors = false;
-            }, 250);
+            }, 300);
+            return;
+          }
+          const ok = await primeMic();
+          if (!ok) {
+            setStatus('Allow Microphone, then tap mic again');
+            appendMessage({
+              role: 'system',
+              content:
+                'Microphone permission denied. iOS Settings → Safari (or CwayClient) → Microphone → Allow, then reload and try again. You can also type.'
+            });
             return;
           }
           try {
+            setListeningUi(true);
             rec.start();
           } catch {
             setStatus('Mic busy — tap again');
@@ -944,23 +1020,22 @@
         }
 
         els.micBtn.classList.remove('disabled');
-        els.micBtn.title = 'Tap to talk · sends to Cursor';
-        els.orbBtn.title = 'Tap to talk · sends to Cursor';
+        els.micBtn.title = 'Tap to talk · tap again to send';
+        els.orbBtn.title = 'Tap to talk · tap again to send';
         els.micBtn.addEventListener('click', toggleSpeech);
         els.orbBtn.addEventListener('click', toggleSpeech);
         state.voiceSupported = true;
         return;
       }
 
-      // No Web Speech — last resort MediaRecorder (still no Whisper required; user can type)
       els.micBtn.classList.remove('disabled');
       els.micBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        setStatus('This iOS version needs typing — Web Speech unavailable');
+        setStatus('Type your message — speech not available here');
         appendMessage({
           role: 'system',
           content:
-            'On-device speech isn’t available in this browser. Type your message — with a Cursor API key + proxy it still answers via your Cursor models.'
+            'On-device speech isn’t available in this browser. **Type** below — with Cursor API key + Proxy URL it still answers.'
         });
       });
       return;

@@ -22,7 +22,7 @@ const worker = `/**
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type, x-cursor-path, x-cursor-method',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept, x-cursor-path, x-cursor-method',
   'Access-Control-Max-Age': '86400'
 };
 
@@ -51,15 +51,12 @@ async function proxyCursor(request, url) {
 
   const method = (
     request.headers.get('x-cursor-method') ||
-    request.method ||
     'GET'
   ).toUpperCase();
 
+  // Drain body even for GET (phone always POSTs to this Worker)
+  const incoming = await request.text();
   const target = 'https://api.cursor.com' + apiPath;
-  let body;
-  if (method !== 'GET' && method !== 'HEAD') {
-    body = await request.text();
-  }
 
   try {
     const upstream = await fetch(target, {
@@ -69,7 +66,7 @@ async function proxyCursor(request, url) {
         'Content-Type': 'application/json',
         Accept: 'application/json'
       },
-      body: body || undefined
+      body: method === 'GET' || method === 'HEAD' ? undefined : incoming || undefined
     });
     const text = await upstream.text();
     return new Response(text, {

@@ -9,15 +9,15 @@ Safari can’t call Cursor’s API directly (CORS). A free **Cloudflare Worker**
 ### Live app (already deployed)
 
 **Open this in Safari** (real webpage — not GitHub source):  
-https://cwayclient-cursor-proxy.heady-handle.workers.dev  
+https://cwayclient-cursor-proxy.snow-paw.workers.dev  
 
 If you see “Just a moment…”, wait a second — then CwayClient appears.  
 Share → **Add to Home Screen**. Proxy URL is auto-filled to this same site.
 
 **Claim into your Cloudflare account now** (preview dies if you don’t):  
-https://dash.cloudflare.com/claim-preview?claimToken=w6BrJXbMV2Sray0uX43Dqx9AyzWyr1YOmgTaq90lYlA  
+https://dash.cloudflare.com/claim-preview?claimToken=GkiU1lWSnGgFRVHcWQ_hYOEoXVzSi5l2AZvT0QVyjyM  
 
-Then paste your [Cursor API key](https://cursor.com/dashboard/api) → **Test** → mic / type.
+Then paste your [Cursor API key](https://cursor.com/dashboard/api) → **Test** → type a short message (Cloud Agents can take 30–90s). Mic: tap → speak → tap again (prefer Safari if Home Screen blocks speech).
 
 > Don’t open the GitHub/jsDelivr `.html` link — Safari shows the code (`text/plain`).
 

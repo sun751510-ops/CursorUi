@@ -1,15 +1,16 @@
-# Live app (open in Safari — not GitHub)
+# Live app
 
-**Open this URL:**  
-https://cwayclient-cursor-proxy.heady-handle.workers.dev
+**Open in Safari:**  
+https://cwayclient-cursor-proxy.snow-paw.workers.dev
 
-If you see “Just a moment…”, wait — then CwayClient loads.
+**Claim now (or it dies again):**  
+https://dash.cloudflare.com/claim-preview?claimToken=GkiU1lWSnGgFRVHcWQ_hYOEoXVzSi5l2AZvT0QVyjyM
 
-**Claim into YOUR Cloudflare account NOW** (or this link dies again):  
-https://dash.cloudflare.com/claim-preview?claimToken=w6BrJXbMV2Sray0uX43Dqx9AyzWyr1YOmgTaq90lYlA  
+## Settings
+- AI provider: Cursor  
+- Cursor API key: from https://cursor.com/dashboard/api  
+- Proxy URL: `https://cwayclient-cursor-proxy.snow-paw.workers.dev` (auto if you opened this site)  
+- Tap **Test**, then type a short message (replies can take 30–90s)
 
-1. Open the claim link  
-2. Sign in / create a free Cloudflare account  
-3. Keep the Worker — then the same `*.workers.dev` URL stays forever  
-
-Proxy URL auto-fills when you open the Worker site. Paste your Cursor API key → Test.
+## Mic
+Allow Microphone **and** try voice in Safari (not only Home Screen). Tap mic → speak → tap mic again. If speech is blocked, type — AI still works.
